@@ -3,7 +3,7 @@ import sys
 
 import yaml
 
-from pg_db_tools.sql_renderer import render_sql
+from pg_db_tools.sql_renderer import SqlRenderer
 
 
 def setup_command_parser(subparsers):
@@ -11,6 +11,10 @@ def setup_command_parser(subparsers):
 
     parser_sql.add_argument('infile', type=argparse.FileType('r'))
     parser_sql.add_argument('--output-file', '-o', help='write output to file', default=sys.stdout)
+    parser_sql.add_argument(
+        '--if-not-exists', default=False, action='store_true',
+        help='create database objects only if they don''t exist yet'
+    )
 
     parser_sql.set_defaults(cmd=sql_command)
 
@@ -18,6 +22,9 @@ def setup_command_parser(subparsers):
 def sql_command(args):
     data = yaml.load(args.infile)
 
-    rendered_chunks = render_sql(data)
+    renderer = SqlRenderer()
+    renderer.if_not_exists = args.if_not_exists
+
+    rendered_chunks = renderer.render(data)
 
     args.output_file.writelines(rendered_chunks)
