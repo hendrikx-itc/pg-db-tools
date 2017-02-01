@@ -50,9 +50,16 @@ class SqlRenderer:
             ident='{}.{}'.format(quote_ident(schema_name), quote_ident(data['name'])),
             columns_part=',\n'.join(
                 chain(
-                    ('  {} {}'.format(quote_ident(c['name']), c['data_type']) for c in data['columns']),
+                    ['  {}'.format(self.render_column_definition(c)) for c in data['columns']],
                     ['  PRIMARY KEY ({})'.format(', '.join(data['primary_key']))],
-                    ['  UNIQUE ({})'.format(', '.join(unique_constraint)) for unique_constraint in data.get('unique', [])]
+                    [
+                        '  UNIQUE ({})'.format(', '.join(unique_constraint['columns']))
+                        for unique_constraint in data.get('unique', [])
+                    ],
+                    [
+                        '  {}'.format(self.render_exclude_constraint(exclude_constraint))
+                        for exclude_constraint in data.get('exclude', [])
+                    ]
                 )
             )
         )
@@ -65,6 +72,29 @@ class SqlRenderer:
                 quote_ident(data['name']),
                 quote_string(escape_string(data['description']))
             )
+
+    def render_column_definition(self, column_data):
+        column_constraints = []
+
+        if not column_data.get('nullable', False):
+            column_constraints.append('NOT NULL')
+
+        return '{} {}'.format(
+            quote_ident(column_data['name']),
+            column_data['data_type']
+        )
+
+    def render_exclude_constraint(self, exclude_data):
+        parts = ['EXCLUDE ']
+
+        if exclude_data.get('index_method'):
+            parts.append('USING {index_method} '.format(**exclude_data))
+
+        parts.append(
+            '({})'.format(', '.join('{exclude_element} WITH {operator}'.format(**e) for e in exclude_data['exclusions']))
+        )
+
+        return ''.join(parts)
 
 
 def quote_ident(ident):
