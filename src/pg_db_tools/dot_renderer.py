@@ -34,7 +34,7 @@ def render_table_edges(schema_name, table_data):
 
 def render_table_html_label(data):
     return (
-        '<<table border="0" cellspacing="0" cellborder="1">\n'
+        '<<table border="1" cellspacing="0" cellborder="0">\n'
         '  <tr><td bgcolor="grey" colspan="2">{name}</td></tr>\n'
         '{column_rows}\n'
         '</table>>\n'
