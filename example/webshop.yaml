@@ -1,34 +1,39 @@
-tables:
-  - name: Order
-    schema: shop
-    description: "Contains all orders"
-    columns:
-      - name: id
-        description: "Primary key"
-        data_type: integer
-      - name: created
-        data_type: timestamp with time zone
-    primary_key: ['id']
+extensions:
+  - btree_gist
 
-  - name: OrderLine
-    schema: shop
-    description: "Contains all order lines for all orders"
-    columns:
-      - name: id
-        description: "Primary key"
-        data_type: integer
-      - name: order_id
-        data_type: integer
-      - name: line_nr
-        data_type: integer
-      - name: product_id
-        data_type: integer
-      - name: amount
-        data_type: integer
-    foreign_keys:
-      - columns:
-          - order_id
-        references:
-          table: Order
-          columns:
-            - id
+objects:
+  - table:
+      name: Order
+      schema: shop
+      description: "Contains all orders"
+      columns:
+        - name: id
+          description: "Primary key"
+          data_type: integer
+        - name: created
+          data_type: timestamp with time zone
+      primary_key: ['id']
+
+  - table:
+      name: OrderLine
+      schema: shop
+      description: "Contains all order lines for all orders"
+      columns:
+        - name: id
+          description: "Primary key"
+          data_type: integer
+        - name: order_id
+          data_type: integer
+        - name: line_nr
+          data_type: integer
+        - name: product_id
+          data_type: integer
+        - name: amount
+          data_type: integer
+      foreign_keys:
+        - columns:
+            - order_id
+          references:
+            table: Order
+            columns:
+              - id

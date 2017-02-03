@@ -9,32 +9,39 @@ class SqlRenderer:
     def render(self, data):
         return iter_join(
             '\n',
-            chain(*(
-                self.render_schema_sql(schema_name, schema_data)
-                for schema_name, schema_data in data.items()
-            ))
+            chain(
+                self.create_schema_statements(data),
+                *[
+                    self.render_object_sql(object_data)
+                    for object_data in data['objects']
+                ]
+            )
         )
 
-    def render_schema_sql(self, schema_name, data):
+    def create_schema_statements(self, data):
         options = []
 
         if self.if_not_exists:
             options.append('IF NOT EXISTS')
 
-        create_schema_statement = 'CREATE SCHEMA {options}{ident};\n'.format(
-            options=''.join('{} '.format(option) for option in options),
-            ident=quote_ident(schema_name)
-        )
+        for schema_name in self.collect_schema_names(data):
+            yield 'CREATE SCHEMA {options}{ident};\n'.format(
+                options=''.join('{} '.format(option) for option in options),
+                ident=quote_ident(schema_name)
+            )
 
-        return chain(
-            [create_schema_statement],
-            chain(*(
-                self.render_table_sql(schema_name, table_data)
-                for table_data in data['tables']
-            ))
-        )
+    def collect_schema_names(self, data):
+        return list(set(db_object['table']['schema'] for db_object in data['objects']))
 
-    def render_table_sql(self, schema_name, data):
+    def render_object_sql(self, data):
+        object_type, object_data = next(iter(data.items()))
+
+        if object_type == 'table':
+            return self.render_table_sql(object_data)
+        else:
+            raise Exception('Unsupported object type: {}'.format(object_type))
+
+    def render_table_sql(self, data):
         options = []
 
         if self.if_not_exists:
@@ -47,8 +54,8 @@ class SqlRenderer:
             ');\n'
         ).format(
             options=''.join('{} '.format(option) for option in options),
-            ident='{}.{}'.format(quote_ident(schema_name), quote_ident(data['name'])),
-            columns_part=',\n'.join(self.table_defining_components(schema_name, data))
+            ident='{}.{}'.format(quote_ident(data['schema']), quote_ident(data['name'])),
+            columns_part=',\n'.join(self.table_defining_components(data))
         )
 
         if 'description' in data:
@@ -60,7 +67,7 @@ class SqlRenderer:
                 quote_string(escape_string(data['description']))
             )
 
-    def table_defining_components(self, schema_name, table_data):
+    def table_defining_components(self, table_data):
         for column_data in table_data['columns']:
             yield '  {}'.format(self.render_column_definition(column_data))
 
@@ -72,7 +79,6 @@ class SqlRenderer:
 
         for exclude_constraint in table_data.get('exclude', []):
             yield '  {}'.format(self.render_exclude_constraint(exclude_constraint))
-
 
     def render_column_definition(self, column_data):
         column_constraints = []
