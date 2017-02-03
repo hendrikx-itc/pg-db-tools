@@ -11,21 +11,28 @@ def render_dot(data):
     yield '}\n'
 
 
+def table_node_name(schema_name, table_name):
+    return '{}_{}'.format(schema_name, table_name)
+
+
 def render_table_node(schema_name, table_data):
     return (
         '{} [\n'
         '  shape = none\n'
         '  label = {}\n'
         ']\n'
-    ).format(table_data['name'], render_table_html_label(table_data))
+    ).format(table_node_name(schema_name, table_data['name']), render_table_html_label(table_data))
 
 
 def render_table_edges(schema_name, table_data):
     return ''.join(
         '{node_name}:{port} -> {dest_node_name}:{dest_port}\n'.format(
-            node_name=table_data['name'],
+            node_name=table_node_name(schema_name, table_data['name']),
             port=foreign_key['columns'][0],
-            dest_node_name=foreign_key['references']['table']['name'],
+            dest_node_name=table_node_name(
+                foreign_key['references']['table']['schema'],
+                foreign_key['references']['table']['name']
+            ),
             dest_port=foreign_key['references']['columns'][0]
         )
         for foreign_key in table_data.get('foreign_keys', [])
