@@ -59,7 +59,7 @@ class SqlRenderer:
 
     def render_enum_sql(self, data):
         return [
-            'CREATE TYPE {ident} AS ENUM ({values});'.format(
+            'CREATE TYPE {ident} AS ENUM ({values});\n'.format(
                 ident='{}.{}'.format(quote_ident(data['schema']), quote_ident(data['name'])),
                 values=', '.join(map(quote_string, data['values']))
             )
@@ -92,7 +92,6 @@ class SqlRenderer:
 
         if 'description' in data:
             yield (
-                '\n'
                 'COMMENT ON TABLE {} IS {};\n'
             ).format(
                 '{}.{}'.format(quote_ident(data['schema']), quote_ident(data['name'])),
