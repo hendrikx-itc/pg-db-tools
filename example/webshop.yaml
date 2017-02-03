@@ -1,6 +1,15 @@
 extensions:
   - btree_gist
 
+types:
+  - enum:
+      name: order_state
+      schema: shop
+      values:
+        - new
+        - shipped
+        - cancelled
+
 objects:
   - table:
       name: Order

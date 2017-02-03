@@ -9,14 +9,18 @@ class SqlRenderer:
     def render(self, data):
         return iter_join(
             '\n',
-            chain(
-                self.create_schema_statements(data),
-                *[
-                    self.render_object_sql(object_data)
-                    for object_data in data['objects']
-                ]
-            )
+            chain(*self.render_chunk_sets(data))
         )
+
+    def render_chunk_sets(self, data):
+        yield self.create_extension_statements(data)
+        yield self.create_schema_statements(data)
+
+        for type_data in data['types']:
+            yield self.render_type_sql(type_data)
+
+        for object_data in data['objects']:
+            yield self.render_object_sql(object_data)
 
     def create_schema_statements(self, data):
         options = []
@@ -32,6 +36,34 @@ class SqlRenderer:
 
     def collect_schema_names(self, data):
         return list(set(db_object['table']['schema'] for db_object in data['objects']))
+
+    def create_extension_statements(self, data):
+        options = []
+
+        if self.if_not_exists:
+            options.append('IF NOT EXISTS')
+
+        for extension_name in data.get('extensions', []):
+            yield 'CREATE EXTENSION {options}{extension_name};\n'.format(
+                options=''.join('{} '.format(option) for option in options),
+                extension_name=extension_name
+            )
+
+    def render_type_sql(self, data):
+        type_type, object_data = next(iter(data.items()))
+
+        if type_type == 'enum':
+            return self.render_enum_sql(object_data)
+        else:
+            raise Exception('Unsupported type: {}'.format(type_type))
+
+    def render_enum_sql(self, data):
+        return [
+            'CREATE TYPE {ident} AS ENUM ({values});'.format(
+                ident='{}.{}'.format(quote_ident(data['schema']), quote_ident(data['name'])),
+                values=', '.join(map(quote_string, data['values']))
+            )
+        ]
 
     def render_object_sql(self, data):
         object_type, object_data = next(iter(data.items()))
@@ -63,7 +95,7 @@ class SqlRenderer:
                 '\n'
                 'COMMENT ON TABLE {} IS {};\n'
             ).format(
-                quote_ident(data['name']),
+                '{}.{}'.format(quote_ident(data['schema']), quote_ident(data['name'])),
                 quote_string(escape_string(data['description']))
             )
 
