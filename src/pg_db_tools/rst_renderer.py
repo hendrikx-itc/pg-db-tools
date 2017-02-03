@@ -1,5 +1,7 @@
 from functools import reduce
 
+from pg_db_tools import iter_join
+
 
 def render_rst(data):
     for schema_name, schema in data.items():
@@ -64,11 +66,21 @@ def render_table_grid(header, rows):
 
     yield header_sep_line
 
-    for row in rows:
-        yield '| {} |'.format(' | '.join(cell_value.ljust(width) for cell_value, width in zip(row, max_widths)))
+    for line in iter_join(
+            sep_line,
+            (
+                '| {} |'.format(
+                    ' | '.join(cell_value.ljust(width) for cell_value, width in zip(row, max_widths))
+                )
+                for row in rows
+            )
+    ):
+        yield line
 
     yield sep_line
 
 
 def render_sep_line(sep_char, widths):
-    return '+{}+'.format('+'.join((width + 2) * sep_char for width in widths))
+    return '+{}+'.format(
+        '+'.join((width + 2) * sep_char for width in widths)
+    )
