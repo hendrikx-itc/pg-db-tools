@@ -48,20 +48,7 @@ class SqlRenderer:
         ).format(
             options=''.join('{} '.format(option) for option in options),
             ident='{}.{}'.format(quote_ident(schema_name), quote_ident(data['name'])),
-            columns_part=',\n'.join(
-                chain(
-                    ['  {}'.format(self.render_column_definition(c)) for c in data['columns']],
-                    ['  PRIMARY KEY ({})'.format(', '.join(data['primary_key']))],
-                    [
-                        '  UNIQUE ({})'.format(', '.join(unique_constraint['columns']))
-                        for unique_constraint in data.get('unique', [])
-                    ],
-                    [
-                        '  {}'.format(self.render_exclude_constraint(exclude_constraint))
-                        for exclude_constraint in data.get('exclude', [])
-                    ]
-                )
-            )
+            columns_part=',\n'.join(self.table_defining_components(schema_name, data))
         )
 
         if 'description' in data:
@@ -72,6 +59,19 @@ class SqlRenderer:
                 quote_ident(data['name']),
                 quote_string(escape_string(data['description']))
             )
+
+    def table_defining_components(self, schema_name, table_data):
+        for column_data in table_data['columns']:
+            yield '  {}'.format(self.render_column_definition(column_data))
+
+        yield '  PRIMARY KEY ({})'.format(', '.join(table_data['primary_key']))
+
+        for unique_constraint in table_data.get('unique', []):
+            yield '  UNIQUE ({})'.format(', '.join(unique_constraint['columns']))
+
+        for exclude_constraint in table_data.get('exclude', []):
+            yield '  {}'.format(self.render_exclude_constraint(exclude_constraint))
+
 
     def render_column_definition(self, column_data):
         column_constraints = []
