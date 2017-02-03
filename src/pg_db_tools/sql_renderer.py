@@ -64,7 +64,8 @@ class SqlRenderer:
         for column_data in table_data['columns']:
             yield '  {}'.format(self.render_column_definition(column_data))
 
-        yield '  PRIMARY KEY ({})'.format(', '.join(table_data['primary_key']))
+        if 'primary_key' in table_data:
+            yield '  PRIMARY KEY ({})'.format(', '.join(table_data['primary_key']))
 
         for unique_constraint in table_data.get('unique', []):
             yield '  UNIQUE ({})'.format(', '.join(unique_constraint['columns']))
