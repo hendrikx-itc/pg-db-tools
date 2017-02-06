@@ -9,12 +9,16 @@ class DotRenderer:
 
 
 def render_dot_chunks(database):
-    yield 'digraph {\n'
+    yield 'digraph schema {\n'
 
     for schema_name, schema in database.schemas.items():
+        yield 'subgraph cluster_{} {{\n'.format(schema_name)
+
         for table_data in schema.tables:
             yield render_table_node(schema_name, table_data)
             yield render_table_edges(schema_name, table_data)
+
+        yield '}\n'
 
     yield '}\n'
 
