@@ -1,10 +1,15 @@
 
+def render_dot(out_file, data):
+    rendered_chunks = render_dot_chunks(data)
 
-def render_dot(data):
+    out_file.writelines(rendered_chunks)
+
+
+def render_dot_chunks(database):
     yield 'digraph {\n'
 
-    for schema_name, schema_data in data.items():
-        for table_data in schema_data['tables']:
+    for schema_name, schema in database.schemas.items():
+        for table_data in schema.tables:
             yield render_table_node(schema_name, table_data)
             yield render_table_edges(schema_name, table_data)
 
@@ -15,19 +20,19 @@ def table_node_name(schema_name, table_name):
     return '{}_{}'.format(schema_name, table_name)
 
 
-def render_table_node(schema_name, table_data):
+def render_table_node(schema_name, table):
     return (
         '{} [\n'
         '  shape = none\n'
         '  label = {}\n'
         ']\n'
-    ).format(table_node_name(schema_name, table_data['name']), render_table_html_label(table_data))
+    ).format(table_node_name(schema_name, table.name), render_table_html_label(table))
 
 
-def render_table_edges(schema_name, table_data):
+def render_table_edges(schema_name, table):
     return ''.join(
         '{node_name}:{port} -> {dest_node_name}:{dest_port}\n'.format(
-            node_name=table_node_name(schema_name, table_data['name']),
+            node_name=table_node_name(schema_name, table.name),
             port=foreign_key['columns'][0],
             dest_node_name=table_node_name(
                 foreign_key['references']['table']['schema'],
@@ -35,21 +40,21 @@ def render_table_edges(schema_name, table_data):
             ),
             dest_port=foreign_key['references']['columns'][0]
         )
-        for foreign_key in table_data.get('foreign_keys', [])
+        for foreign_key in table.foreign_keys
     )
 
 
-def render_table_html_label(data):
+def render_table_html_label(table):
     return (
         '<<table border="1" cellspacing="0" cellborder="0">\n'
         '  <tr><td bgcolor="grey" colspan="2">{name}</td></tr>\n'
         '{column_rows}\n'
         '</table>>\n'
     ).format(
-        name=data['name'],
+        name=table.name,
         column_rows='\n'.join(
             '  <tr><td port="{col_name}" align="left">{col_name}</td>'
-            '<td align="left">{data_type}</td></tr>'.format(col_name=c['name'], data_type=c.get('data_type', ''))
-            for c in data['columns']
+            '<td align="left">{data_type}</td></tr>'.format(col_name=c.name, data_type=c.data_type)
+            for c in table.columns
         )
     )

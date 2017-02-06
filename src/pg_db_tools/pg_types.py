@@ -64,6 +64,10 @@ class PgTable:
         self.schema = schema
         self.name = name
         self.columns = columns
+        self.primary_key = None
+        self.foreign_keys = []
+        self.unique = None
+        self.description = None
 
     @staticmethod
     def load(database, data):
@@ -77,6 +81,14 @@ class PgTable:
                 for column_data in data['columns']
             ]
         )
+
+        table.primary_key = data.get('primary_key')
+
+        table.unique = data.get('unique')
+
+        table.exclude = data.get('exclude')
+
+        table.foreign_keys = [foreign_key for foreign_key in data.get('foreign_keys', [])]
 
         schema.tables.append(table)
 
@@ -107,8 +119,14 @@ class PgEnum:
 
     @staticmethod
     def load(database, data):
-        return PgEnum(
-            database.register_schema(data['schema']),
+        schema = database.register_schema(data['schema'])
+
+        enum = PgEnum(
+            schema,
             data['name'],
             data['values']
         )
+
+        schema.types.append(enum)
+
+        return enum

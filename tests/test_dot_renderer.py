@@ -1,10 +1,11 @@
 """
-Test the load function for schema data from a YAML file.
+Test the Graphviz DOT rendering function for schema data.
 """
 import unittest
 from io import StringIO
 
 from pg_db_tools.pg_types import load
+from pg_db_tools.dot_renderer import render_dot
 
 
 json_data = """
@@ -53,17 +54,25 @@ objects:
         - columns:
             - order_id
           references:
-            table: Order
+            table:
+              schema: shop
+              name: Order
             columns:
               - id
 """
 
 
-class TestLoad(unittest.TestCase):
+class TestDotRenderer(unittest.TestCase):
 
-    def test_load(self):
+    def test_render(self):
         database = load(StringIO(json_data))
 
-        self.assertEqual(len(database.schemas), 1)
+        out = StringIO()
 
-        self.assertTrue('shop' in database.schemas)
+        render_dot(out, database)
+
+        out.seek(0)
+
+        rendered_dot = out.read()
+
+        self.assertTrue(len(rendered_dot) > 0)

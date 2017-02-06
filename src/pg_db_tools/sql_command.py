@@ -1,8 +1,7 @@
 import argparse
 import sys
 
-import yaml
-
+from pg_db_tools.pg_types import load
 from pg_db_tools.sql_renderer import SqlRenderer
 
 
@@ -20,11 +19,11 @@ def setup_command_parser(subparsers):
 
 
 def sql_command(args):
-    data = yaml.load(args.infile)
+    data = load(args.infile)
 
     renderer = SqlRenderer()
     renderer.if_not_exists = args.if_not_exists
 
-    rendered_chunks = renderer.render(data)
+    rendered_chunks = renderer.render_chunks(data)
 
     args.output_file.writelines(rendered_chunks)

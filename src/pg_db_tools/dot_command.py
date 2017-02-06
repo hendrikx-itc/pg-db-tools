@@ -1,8 +1,8 @@
 import argparse
 
 import sys
-import yaml
 
+from pg_db_tools.pg_types import load
 from pg_db_tools.dot_renderer import render_dot
 
 
@@ -16,8 +16,6 @@ def setup_command_parser(subparsers):
 
 
 def dot_command(args):
-    data = yaml.load(args.infile)
+    data = load(args.infile)
 
-    rendered_chunks = render_dot(data)
-
-    args.output_file.writelines(rendered_chunks)
+    render_dot(args.output_file, data)
