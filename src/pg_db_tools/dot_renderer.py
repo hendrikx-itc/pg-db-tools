@@ -12,11 +12,12 @@ def render_dot_chunks(database):
     yield 'digraph schema {\n'
 
     for schema_name, schema in database.schemas.items():
-        yield 'subgraph cluster_{} {{\n'.format(schema_name)
+        yield '  subgraph cluster_{} {{\n'.format(schema_name)
+        yield '    label = "{}"'.format(schema_name)
 
-        for table_data in schema.tables:
-            yield render_table_node(schema_name, table_data)
-            yield render_table_edges(schema_name, table_data)
+        for table in schema.tables:
+            yield render_table_node(table)
+            yield render_table_edges(table)
 
         yield '}\n'
 
@@ -27,19 +28,19 @@ def table_node_name(schema_name, table_name):
     return '{}_{}'.format(schema_name, table_name)
 
 
-def render_table_node(schema_name, table):
+def render_table_node(table):
     return (
         '{} [\n'
         '  shape = none\n'
         '  label = {}\n'
         ']\n'
-    ).format(table_node_name(schema_name, table.name), render_table_html_label(table))
+    ).format(table_node_name(table.schema.name, table.name), render_table_html_label(table))
 
 
-def render_table_edges(schema_name, table):
+def render_table_edges(table):
     return ''.join(
         '{node_name}:{port} -> {dest_node_name}:{dest_port}\n'.format(
-            node_name=table_node_name(schema_name, table.name),
+            node_name=table_node_name(table.schema.name, table.name),
             port=foreign_key['columns'][0],
             dest_node_name=table_node_name(
                 foreign_key['references']['table']['schema'],
