@@ -25,17 +25,21 @@ class DotRenderer:
                 yield self.render_table_node(table)
                 yield self.render_table_edges(table)
 
-            yield '}\n'
+            yield '  }\n'
 
         yield '}\n'
 
     def render_table_node(self, table):
         return (
-            '{} [\n'
-            '  shape = none\n'
-            '  label = {}\n'
-            ']\n'
-        ).format(table_node_name(table.schema.name, table.name), self.render_table_html_label(table))
+            '{indent}{node_name} [\n'
+            '{indent}  shape = none\n'
+            '{indent}  label = {label}\n'
+            '{indent}]\n'
+        ).format(
+            indent='  ',
+            node_name=table_node_name(table.schema.name, table.name),
+            label=self.render_table_html_label(table)
+        )
 
     def render_table_edges(self, table):
         return ''.join(
@@ -75,7 +79,8 @@ class DotRenderer:
                 )
             )
 
-        return '{source} -> {target} [ {attributes} ];\n'.format(
+        return '{indent}{source} -> {target} [ {attributes} ];\n'.format(
+            indent='  ',
             source=source,
             target=target,
             attributes=' '.join('{}="{}"'.format(key, value) for key, value in attributes.items())
