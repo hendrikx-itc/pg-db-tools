@@ -22,7 +22,7 @@ class SqlRenderer:
     def render_chunk_sets(self, database):
         yield self.create_extension_statements(database)
 
-        for schema_name, schema in database.schemas.items():
+        for schema in sorted(database.schemas.values(), key=lambda s: s.name):
             for sql in self.render_schema_sql(schema):
                 yield sql
 
