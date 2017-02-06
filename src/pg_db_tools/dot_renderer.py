@@ -84,7 +84,7 @@ class DotRenderer:
     def render_table_html_label(self, table):
         return (
             '<<table border="1" cellspacing="0" cellborder="0">\n'
-            '  <tr><td bgcolor="grey" colspan="2">{name}</td></tr>\n'
+            '  <tr><td colspan="2" border="1" sides="B">{name}</td></tr>\n'
             '{column_rows}\n'
             '</table>>\n'
         ).format(
