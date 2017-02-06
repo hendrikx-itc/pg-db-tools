@@ -5,7 +5,7 @@ import unittest
 from io import StringIO
 
 from pg_db_tools.pg_types import load
-from pg_db_tools.rst_renderer import render_rst
+from pg_db_tools.rst_renderer import RstRenderer
 
 
 json_data = """
@@ -69,7 +69,8 @@ class TestRstRenderer(unittest.TestCase):
 
         out = StringIO()
 
-        render_rst(out, database)
+        renderer = RstRenderer()
+        renderer.render(out, database)
 
         out.seek(0)
 

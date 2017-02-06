@@ -1,11 +1,9 @@
 
 
 class DotRenderer:
-    def __init__(self):
-        pass
-
-    def render(self, out_file, database):
-        rendered_chunks = self.render_dot_chunks(database)
+    @staticmethod
+    def render(out_file, database):
+        rendered_chunks = render_dot_chunks(database)
 
         out_file.writelines(rendered_chunks)
 

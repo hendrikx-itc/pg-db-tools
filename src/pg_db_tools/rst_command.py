@@ -3,7 +3,7 @@ import argparse
 import sys
 
 from pg_db_tools.pg_types import load
-from pg_db_tools.rst_renderer import render_rst
+from pg_db_tools.rst_renderer import RstRenderer
 
 
 def setup_command_parser(subparsers):
@@ -18,4 +18,5 @@ def setup_command_parser(subparsers):
 def dot_command(args):
     data = load(args.infile)
 
-    render_rst(args.output_file, data)
+    renderer = RstRenderer()
+    renderer.render(args.output_file, data)

@@ -3,10 +3,12 @@ from functools import reduce
 from pg_db_tools import iter_join
 
 
-def render_rst(out_file, database):
-    rendered_chunks = render_rst_chunks(database)
+class RstRenderer:
+    @staticmethod
+    def render(out_file, database):
+        rendered_chunks = render_rst_chunks(database)
 
-    out_file.writelines(rendered_chunks)
+        out_file.writelines(rendered_chunks)
 
 
 def render_rst_chunks(database):

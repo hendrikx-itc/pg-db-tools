@@ -3,7 +3,7 @@ import argparse
 import sys
 
 from pg_db_tools.pg_types import load
-from pg_db_tools.dot_renderer import render_dot
+from pg_db_tools.dot_renderer import DotRenderer
 
 
 def setup_command_parser(subparsers):
@@ -18,4 +18,5 @@ def setup_command_parser(subparsers):
 def dot_command(args):
     data = load(args.infile)
 
-    render_dot(args.output_file, data)
+    renderer = DotRenderer()
+    renderer.render(args.output_file, data)
