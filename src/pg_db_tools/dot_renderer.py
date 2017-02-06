@@ -1,8 +1,13 @@
 
-def render_dot(out_file, data):
-    rendered_chunks = render_dot_chunks(data)
 
-    out_file.writelines(rendered_chunks)
+class DotRenderer:
+    def __init__(self):
+        pass
+
+    def render(self, out_file, database):
+        rendered_chunks = self.render_dot_chunks(database)
+
+        out_file.writelines(rendered_chunks)
 
 
 def render_dot_chunks(database):

@@ -5,7 +5,7 @@ import unittest
 from io import StringIO
 
 from pg_db_tools.pg_types import load
-from pg_db_tools.dot_renderer import render_dot
+from pg_db_tools.dot_renderer import DotRenderer
 
 
 json_data = """
@@ -69,7 +69,8 @@ class TestDotRenderer(unittest.TestCase):
 
         out = StringIO()
 
-        render_dot(out, database)
+        renderer = DotRenderer()
+        renderer.render(out, database)
 
         out.seek(0)
 
