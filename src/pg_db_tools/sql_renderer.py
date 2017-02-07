@@ -110,6 +110,10 @@ class SqlRenderer:
             for unique_constraint in table.unique:
                 yield '  UNIQUE ({})'.format(', '.join(unique_constraint['columns']))
 
+        if table.check:
+            for check_constraint in table.check:
+                yield '  CHECK ({})'.format(check_constraint['expression'])
+
         if table.exclude:
             for exclude_constraint in table.exclude:
                 yield '  {}'.format(self.render_exclude_constraint(exclude_constraint))

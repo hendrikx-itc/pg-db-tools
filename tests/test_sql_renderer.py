@@ -50,6 +50,8 @@ objects:
           data_type: integer
         - name: amount
           data_type: integer
+      check:
+        - expression: line_nr > 0
       foreign_keys:
         - columns:
             - order_id

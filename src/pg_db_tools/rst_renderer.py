@@ -1,6 +1,7 @@
 from functools import reduce
 
 from pg_db_tools import iter_join
+from pg_db_tools.pg_types import PgEnum
 
 
 class RstRenderer:
@@ -13,7 +14,10 @@ class RstRenderer:
 
 def render_rst_chunks(database):
     for schema_name, schema in database.schemas.items():
-        yield '{}\n\n'.format(header(1, schema_name))
+        yield '{}\n\n'.format(header(1, 'Schema ``{}``'.format(schema_name)))
+
+        for pg_type in schema.types:
+            yield render_type(pg_type)
 
         for table in schema.tables:
             yield render_table(table)
@@ -37,6 +41,30 @@ def header(level, text):
     )
 
 
+def render_type(pg_type):
+    if type(pg_type) is PgEnum:
+        return render_enum(pg_type)
+    else:
+        raise NotImplementedError('No rendering implemented for type {}'.format(type(pg_type)))
+
+
+def render_enum(pg_enum):
+    return (
+        '{}\n'
+        '\n'
+        '{}\n'
+        '\n'
+    ).format(
+        header(2, 'Enum ``{}``'.format(pg_enum.name)),
+        '\n'.join(
+            render_table_grid(
+                ['Value'],
+                [(value, ) for value in pg_enum.values]
+            )
+        )
+    )
+
+
 def render_table(table):
     return (
         '{}\n'
@@ -44,11 +72,11 @@ def render_table(table):
         '{}\n'
         '\n'
     ).format(
-        header(2, table.name),
+        header(2, 'Table ``{}``'.format(table.name)),
         '\n'.join(
             render_table_grid(
-                ['name', 'data type'],
-                [(column.name, column.data_type) for column in table.columns]
+                ['Column', 'Type', 'Description'],
+                [(column.name, column.data_type, column.description or '') for column in table.columns]
             )
         )
     )

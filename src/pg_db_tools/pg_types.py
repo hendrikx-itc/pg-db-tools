@@ -67,6 +67,7 @@ class PgTable:
         self.primary_key = None
         self.foreign_keys = []
         self.unique = None
+        self.check = None
         self.description = None
 
     @staticmethod
@@ -86,6 +87,8 @@ class PgTable:
 
         table.unique = data.get('unique')
 
+        table.check = data.get('check')
+
         table.exclude = data.get('exclude')
 
         table.foreign_keys = [foreign_key for foreign_key in data.get('foreign_keys', [])]
@@ -100,6 +103,7 @@ class PgColumn:
         self.name = name
         self.data_type = data_type
         self.nullable = False
+        self.description = None
 
     @staticmethod
     def load(database, data):
@@ -107,6 +111,8 @@ class PgColumn:
             data['name'],
             data['data_type']
         )
+
+        column.description = data.get('description')
 
         return column
 
