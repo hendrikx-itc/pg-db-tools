@@ -119,15 +119,15 @@ class SqlRenderer:
                 yield '  {}'.format(self.render_exclude_constraint(exclude_constraint))
 
     def render_column_definition(self, column):
-        column_constraints = []
-
-        if not column.nullable:
-            column_constraints.append('NOT NULL')
-
-        return '{} {}'.format(
+        parts = [
             quote_ident(column.name),
             column.data_type
-        )
+        ]
+
+        if column.nullable is False:
+            parts.append('NOT NULL')
+
+        return ' '.join(parts)
 
     def render_exclude_constraint(self, exclude_data):
         parts = ['EXCLUDE ']

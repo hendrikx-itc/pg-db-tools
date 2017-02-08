@@ -44,6 +44,7 @@ objects:
           data_type: integer
         - name: order_id
           data_type: integer
+          nullable: false
         - name: line_nr
           data_type: integer
         - name: product_id

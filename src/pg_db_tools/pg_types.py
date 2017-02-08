@@ -113,6 +113,7 @@ class PgColumn:
         )
 
         column.description = data.get('description')
+        column.nullable = data.get('nullable', True)
 
         return column
 
