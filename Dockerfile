@@ -1,3 +1,3 @@
 FROM python:3.6
 
-RUN apt-get update && apt-get install python3-yaml
+RUN apt-get update && apt-get install -y python3-yaml
