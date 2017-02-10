@@ -1,3 +1,3 @@
-FROM python:3.6-alpine
+FROM python:3.6
 
-RUN apk add --no-cache --virtual .build-deps py3-yaml
+RUN apt-get update && apt-get install python3-yaml
