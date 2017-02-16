@@ -21,6 +21,11 @@ class PgDatabase:
 def load(infile):
     data = yaml.load(infile)
 
+    version = data.get('version', '1')
+
+    if version != '1':
+        raise Exception('Unsupported format version: {}'.format(version))
+
     database = PgDatabase()
 
     database.extensions = data.get('extensions', [])
