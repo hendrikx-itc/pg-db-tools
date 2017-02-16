@@ -21,7 +21,7 @@ def render_table(table_data):
     ).format(
         header(2, table_data['name']),
         '\n'.join(
-            '| {name} | {data_type} |'.format(**column) for column in table_data['columns']
+            '| {name} | {data_type} |'.format(**column)
+            for column in table_data['columns']
         )
     )
-

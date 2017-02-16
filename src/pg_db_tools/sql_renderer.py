@@ -22,7 +22,8 @@ class SqlRenderer:
     def render_chunk_sets(self, database):
         yield self.create_extension_statements(database)
 
-        for schema in sorted(database.schemas.values(), key=lambda s: s.name):
+        for schema in sorted(
+                database.schemas.values(), key=lambda s: s.name):
             for sql in self.render_schema_sql(schema):
                 yield sql
 
@@ -69,7 +70,9 @@ class SqlRenderer:
     def render_enum_sql(self, enum):
         return [
             'CREATE TYPE {ident} AS ENUM ({values});\n'.format(
-                ident='{}.{}'.format(quote_ident(enum.schema.name), quote_ident(enum.name)),
+                ident='{}.{}'.format(
+                    quote_ident(enum.schema.name), quote_ident(enum.name)
+                ),
                 values=', '.join(map(quote_string, enum.values))
             )
         ]
@@ -87,7 +90,9 @@ class SqlRenderer:
             ');\n'
         ).format(
             options=''.join('{} '.format(option) for option in options),
-            ident='{}.{}'.format(quote_ident(table.schema.name), quote_ident(table.name)),
+            ident='{}.{}'.format(
+                quote_ident(table.schema.name), quote_ident(table.name)
+            ),
             columns_part=',\n'.join(self.table_defining_components(table))
         )
 
@@ -95,7 +100,9 @@ class SqlRenderer:
             yield (
                 'COMMENT ON TABLE {} IS {};\n'
             ).format(
-                '{}.{}'.format(quote_ident(table.schema), quote_ident(table.name)),
+                '{}.{}'.format(
+                    quote_ident(table.schema), quote_ident(table.name)
+                ),
                 quote_string(escape_string(table.description))
             )
 
@@ -108,7 +115,9 @@ class SqlRenderer:
 
         if table.unique:
             for unique_constraint in table.unique:
-                yield '  UNIQUE ({})'.format(', '.join(unique_constraint['columns']))
+                yield '  UNIQUE ({})'.format(
+                    ', '.join(unique_constraint['columns'])
+                )
 
         if table.check:
             for check_constraint in table.check:
@@ -116,7 +125,9 @@ class SqlRenderer:
 
         if table.exclude:
             for exclude_constraint in table.exclude:
-                yield '  {}'.format(self.render_exclude_constraint(exclude_constraint))
+                yield '  {}'.format(
+                    self.render_exclude_constraint(exclude_constraint)
+                )
 
     def render_column_definition(self, column):
         parts = [
@@ -136,7 +147,12 @@ class SqlRenderer:
             parts.append('USING {index_method} '.format(**exclude_data))
 
         parts.append(
-            '({})'.format(', '.join('{exclude_element} WITH {operator}'.format(**e) for e in exclude_data['exclusions']))
+            '({})'.format(
+                ', '.join(
+                    '{exclude_element} WITH {operator}'.format(**e)
+                    for e in exclude_data['exclusions']
+                )
+            )
         )
 
         return ''.join(parts)

@@ -83,7 +83,10 @@ class DotRenderer:
             indent='  ',
             source=source,
             target=target,
-            attributes=' '.join('{}="{}"'.format(key, value) for key, value in attributes.items())
+            attributes=' '.join(
+                '{}="{}"'.format(key, value)
+                for key, value in attributes.items()
+            )
         )
 
     def render_table_html_label(self, table):
@@ -96,7 +99,9 @@ class DotRenderer:
             name=table.name,
             column_rows='\n'.join(
                 '  <tr><td port="{col_name}" align="left">{col_name}</td>'
-                '<td align="left">{data_type}</td></tr>'.format(col_name=c.name, data_type=c.data_type)
+                '<td align="left">{data_type}</td></tr>'.format(
+                    col_name=c.name, data_type=c.data_type
+                )
                 for c in table.columns
             )
         )

@@ -45,7 +45,9 @@ def render_type(pg_type):
     if type(pg_type) is PgEnum:
         return render_enum(pg_type)
     else:
-        raise NotImplementedError('No rendering implemented for type {}'.format(type(pg_type)))
+        raise NotImplementedError(
+            'No rendering implemented for type {}'.format(type(pg_type))
+        )
 
 
 def render_enum(pg_enum):
@@ -76,7 +78,10 @@ def render_table(table):
         '\n'.join(
             render_table_grid(
                 ['Column', 'Type', 'Description'],
-                [(column.name, column.data_type, column.description or '') for column in table.columns]
+                [
+                    (column.name, column.data_type, column.description or '')
+                    for column in table.columns
+                ]
             )
         )
     )
@@ -98,7 +103,12 @@ def render_table_grid(header, rows):
 
     yield sep_line
 
-    yield '| {} |'.format(' | '.join(column_name.ljust(width) for column_name, width in zip(header, max_widths)))
+    yield '| {} |'.format(
+        ' | '.join(
+            column_name.ljust(width)
+            for column_name, width in zip(header, max_widths)
+        )
+    )
 
     yield header_sep_line
 
@@ -106,7 +116,10 @@ def render_table_grid(header, rows):
             sep_line,
             (
                 '| {} |'.format(
-                    ' | '.join(cell_value.ljust(width) for cell_value, width in zip(row, max_widths))
+                    ' | '.join(
+                        cell_value.ljust(width)
+                        for cell_value, width in zip(row, max_widths)
+                    )
                 )
                 for row in rows
             )

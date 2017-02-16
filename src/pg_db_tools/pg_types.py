@@ -32,7 +32,10 @@ def load(infile):
 
     types = [load_type(database, type_data) for type_data in data['types']]
 
-    objects = [load_object(database, object_data) for object_data in data['objects']]
+    objects = [
+        load_object(database, object_data)
+        for object_data in data['objects']
+    ]
 
     tables = [object for object in objects if type(object) is PgTable]
 
@@ -96,7 +99,10 @@ class PgTable:
 
         table.exclude = data.get('exclude')
 
-        table.foreign_keys = [foreign_key for foreign_key in data.get('foreign_keys', [])]
+        table.foreign_keys = [
+            foreign_key
+            for foreign_key in data.get('foreign_keys', [])
+        ]
 
         schema.tables.append(table)
 
