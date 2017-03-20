@@ -129,6 +129,15 @@ class SqlRenderer:
                     self.render_exclude_constraint(exclude_constraint)
                 )
 
+        if table.foreign_keys:
+            for foreign_key in table.foreign_keys:
+                yield '  FOREIGN KEY ({}) REFERENCES {}.{} ({})'.format(
+                    ', '.join(foreign_key['columns']),
+                    quote_ident(foreign_key['references']['table']['schema']),
+                    quote_ident(foreign_key['references']['table']['name']),
+                    ', '.join(foreign_key['references']['columns'])
+                )
+
     def render_column_definition(self, column):
         parts = [
             quote_ident(column.name),
