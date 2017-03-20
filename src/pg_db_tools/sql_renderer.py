@@ -27,6 +27,23 @@ class SqlRenderer:
             for sql in self.render_schema_sql(schema):
                 yield sql
 
+        for schema in sorted(database.schemas.values(), key=lambda s: s.name):
+            for table in schema.tables:
+                for index, foreign_key in enumerate(table.foreign_keys):
+                    yield [(
+                        'ALTER TABLE {schema_name}.{table_name} '
+                        'ADD CONSTRAINT {key_name} '
+                        'FOREIGN KEY ({columns}) REFERENCES {ref_schema_name}.{ref_table_name} ({ref_columns});'
+                    ).format(
+                        schema_name=quote_ident(schema.name),
+                        table_name=quote_ident(table.name),
+                        key_name=quote_ident('{}_{}_fk_{}'.format(schema.name, table.name, index)),
+                        columns=', '.join(foreign_key['columns']),
+                        ref_schema_name=quote_ident(foreign_key['references']['table']['schema']),
+                        ref_table_name=quote_ident(foreign_key['references']['table']['name']),
+                        ref_columns=', '.join(foreign_key['references']['columns'])
+                    )]
+
     def render_schema_sql(self, schema):
         yield [self.create_schema_statement(schema)]
 
@@ -127,15 +144,6 @@ class SqlRenderer:
             for exclude_constraint in table.exclude:
                 yield '  {}'.format(
                     self.render_exclude_constraint(exclude_constraint)
-                )
-
-        if table.foreign_keys:
-            for foreign_key in table.foreign_keys:
-                yield '  FOREIGN KEY ({}) REFERENCES {}.{} ({})'.format(
-                    ', '.join(foreign_key['columns']),
-                    quote_ident(foreign_key['references']['table']['schema']),
-                    quote_ident(foreign_key['references']['table']['name']),
-                    ', '.join(foreign_key['references']['columns'])
                 )
 
     def render_column_definition(self, column):
