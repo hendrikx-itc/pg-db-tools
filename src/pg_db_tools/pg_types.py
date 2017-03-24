@@ -30,7 +30,10 @@ def load(infile):
 
     database.extensions = data.get('extensions', [])
 
-    types = [load_type(database, type_data) for type_data in data['types']]
+    types = [
+        load_type(database, type_data)
+        for type_data in data.get('types', [])
+    ]
 
     objects = [
         load_object(database, object_data)
