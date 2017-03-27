@@ -30,19 +30,32 @@ class SqlRenderer:
         for schema in sorted(database.schemas.values(), key=lambda s: s.name):
             for table in schema.tables:
                 for index, foreign_key in enumerate(table.foreign_keys):
-                    yield [(
-                        'ALTER TABLE {schema_name}.{table_name} '
-                        'ADD CONSTRAINT {key_name} '
-                        'FOREIGN KEY ({columns}) REFERENCES {ref_schema_name}.{ref_table_name} ({ref_columns});'
-                    ).format(
-                        schema_name=quote_ident(schema.name),
-                        table_name=quote_ident(table.name),
-                        key_name=quote_ident('{}_{}_fk_{}'.format(schema.name, table.name, index)),
-                        columns=', '.join(foreign_key['columns']),
-                        ref_schema_name=quote_ident(foreign_key['references']['table']['schema']),
-                        ref_table_name=quote_ident(foreign_key['references']['table']['name']),
-                        ref_columns=', '.join(foreign_key['references']['columns'])
-                    )]
+                    SqlRenderer.render_foreign_key(
+                        index, schema, table, foreign_key
+                    )
+
+    @staticmethod
+    def render_foreign_key(index, schema, table, foreign_key):
+        yield [(
+            'ALTER TABLE {schema_name}.{table_name} '
+            'ADD CONSTRAINT {key_name} '
+            'FOREIGN KEY ({columns}) '
+            'REFERENCES {ref_schema_name}.{ref_table_name} ({ref_columns});'
+        ).format(
+            schema_name=quote_ident(schema.name),
+            table_name=quote_ident(table.name),
+            key_name=quote_ident(
+                '{}_{}_fk_{}'.format(schema.name, table.name, index)
+            ),
+            columns=', '.join(foreign_key['columns']),
+            ref_schema_name=quote_ident(
+                foreign_key['references']['table']['schema']
+            ),
+            ref_table_name=quote_ident(
+                foreign_key['references']['table']['name']
+            ),
+            ref_columns=', '.join(foreign_key['references']['columns'])
+        )]
 
     def render_schema_sql(self, schema):
         yield [self.create_schema_statement(schema)]
