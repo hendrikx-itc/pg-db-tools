@@ -30,13 +30,13 @@ class SqlRenderer:
         for schema in sorted(database.schemas.values(), key=lambda s: s.name):
             for table in schema.tables:
                 for index, foreign_key in enumerate(table.foreign_keys):
-                    SqlRenderer.render_foreign_key(
+                    yield SqlRenderer.render_foreign_key(
                         index, schema, table, foreign_key
                     )
 
     @staticmethod
     def render_foreign_key(index, schema, table, foreign_key):
-        yield [(
+        return [(
             'ALTER TABLE {schema_name}.{table_name} '
             'ADD CONSTRAINT {key_name} '
             'FOREIGN KEY ({columns}) '
