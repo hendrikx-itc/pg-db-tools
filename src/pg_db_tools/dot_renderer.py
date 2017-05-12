@@ -92,15 +92,17 @@ class DotRenderer:
     def render_table_html_label(self, table):
         return (
             '<<table border="1" cellspacing="0" cellborder="0">\n'
-            '  <tr><td colspan="2" border="1" sides="B">{name}</td></tr>\n'
+            '  <tr><td colspan="3" border="1" sides="B">{name}</td></tr>\n'
             '{column_rows}\n'
             '</table>>\n'
         ).format(
             name=table.name,
             column_rows='\n'.join(
-                '  <tr><td port="{col_name}" align="left">{col_name}</td>'
+                '  <tr><td>{attrs}</td><td port="{col_name}" align="left">{col_name}</td>'
                 '<td align="left">{data_type}</td></tr>'.format(
-                    col_name=c.name, data_type=c.data_type
+                    attrs='PK' if c.name in table.primary_key else '',
+                    col_name=c.name,
+                    data_type=c.data_type
                 )
                 for c in table.columns
             )
