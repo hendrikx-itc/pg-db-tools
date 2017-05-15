@@ -20,6 +20,10 @@ def setup_command_parser(subparsers):
     parser_dot.add_argument(
         '--out-encoding', help='encoding for output file'
     )
+    parser_dot.add_argument(
+        '--href-prefix', help='prefix to use for hrefs on table nodes',
+        default='#'
+    )
 
     parser_dot.set_defaults(cmd=dot_command)
 
@@ -35,4 +39,5 @@ def dot_command(args):
     data = load(args.infile)
 
     renderer = DotRenderer()
+    renderer.href_prefix = args.href_prefix
     renderer.render(out_file, data)

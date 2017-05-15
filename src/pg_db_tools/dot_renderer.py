@@ -8,6 +8,7 @@ class DotRenderer:
     def __init__(self):
         self.label_foreign_key_edges = True
         self.foreign_key_edge_mode = FOREIGN_KEY_EDGE_CONNECT_NODE
+        self.href_prefix = '#'
 
     def render(self, out_file, database):
         rendered_chunks = self.render_dot_chunks(database)
@@ -33,11 +34,14 @@ class DotRenderer:
         return (
             '{indent}{node_name} [\n'
             '{indent}  shape = none\n'
+            '{indent}  href = "{href}"\n'
+            '{indent}  target = "_top"\n'
             '{indent}  label = {label}\n'
             '{indent}]\n'
         ).format(
             indent='  ',
             node_name=table_node_name(table.schema.name, table.name),
+            href="{}{}".format(self.href_prefix, table.name.replace('_', '-')),
             label=self.render_table_html_label(table)
         )
 
