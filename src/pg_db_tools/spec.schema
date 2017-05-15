@@ -1,0 +1,144 @@
+{
+    "type": "object",
+    "required": ["objects"],
+    "properties": {
+        "extensions": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "types": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "oneOf": [
+                    { "$ref": "#/definitions/enum" }
+                ]
+            }
+        },
+        "objects": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "oneOf": [
+                    { "$ref": "#/definitions/table" }
+                ]
+            }
+        }
+    },
+    "definitions": {
+        "enum": {
+            "type": "object",
+            "required": ["enum"],
+            "properties": {
+                "enum": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "Name of table"
+                        },
+                        "schema": {
+                            "type": "string",
+                            "description": "Schema containing table"
+                        },
+                        "values": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "table": {
+            "type": "object",
+            "required": ["table"],
+            "properties": {
+                "table": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "Name of table"
+                        },
+                        "schema": {
+                            "type": "string",
+                            "description": "Schema containing table"
+                        },
+                        "columns": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "data_type": {
+                                        "type": "string"
+                                    },
+                                    "nullable": {
+                                        "type": "boolean",
+                                        "description": "Can this column contain null values?"
+                                    },
+                                    "description": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": ["name", "data_type"]
+                            }
+                        },
+                        "primary_key": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "foreign_keys": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "required": ["columns", "references"],
+                                "properties": {
+                                    "columns": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "references": {
+                                        "type": "object",
+                                        "required": ["table", "columns"],
+                                        "properties": {
+                                            "table": {
+                                                "type": "object",
+                                                "required": ["schema", "name"],
+                                                "properties": {
+                                                    "schema": {
+                                                        "type": "string"
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    }
+                                                }
+                                            },
+                                            "columns": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "required": ["name", "columns"]
+                }
+            }
+        }
+    }
+}

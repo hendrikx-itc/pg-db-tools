@@ -1,4 +1,11 @@
 import yaml
+from pkg_resources import resource_stream
+
+import json
+from jsonschema import validate
+
+
+DEFAULT_SCHEMA = 'public'
 
 
 class PgDatabase:
@@ -20,6 +27,10 @@ class PgDatabase:
 
 def load(infile):
     data = yaml.load(infile)
+    schema_stream = resource_stream(__name__, 'spec.schema')
+    schema = json.load(schema_stream)
+
+    validate(data, schema)
 
     version = data.get('version', '1')
 
@@ -83,7 +94,7 @@ class PgTable:
 
     @staticmethod
     def load(database, data):
-        schema = database.register_schema(data['schema'])
+        schema = database.register_schema(data.get('schema', DEFAULT_SCHEMA))
 
         table = PgTable(
             schema,

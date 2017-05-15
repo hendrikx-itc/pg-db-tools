@@ -15,6 +15,9 @@ setup(
     package_dir={
         '': 'src'
     },
+    package_data={
+        'pg-db-tools': ['spec.schema']
+    },
     scripts=[
         'scripts/compile-db-schema'
     ]
