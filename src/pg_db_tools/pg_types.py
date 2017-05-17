@@ -28,14 +28,20 @@ class PgDatabase:
             return schema
 
 
-def load(infile):
-    data = yaml.load(infile)
-
+def validate_schema(data):
     with resource_stream(__name__, 'spec.schema') as schema_stream:
         with TextIOWrapper(schema_stream) as text_stream:
             schema = json.load(text_stream)
 
     validate(data, schema)
+
+    return data
+
+
+def load(infile):
+    data = yaml.load(infile)
+
+    validate_schema(data)
 
     version = data.get('version', '1')
 
