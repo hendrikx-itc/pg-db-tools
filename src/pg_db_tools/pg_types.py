@@ -1,4 +1,7 @@
 import yaml
+from contextlib import closing
+
+from io import TextIOWrapper
 from pkg_resources import resource_stream
 
 import json
@@ -27,8 +30,10 @@ class PgDatabase:
 
 def load(infile):
     data = yaml.load(infile)
-    schema_stream = resource_stream(__name__, 'spec.schema')
-    schema = json.load(schema_stream)
+
+    with resource_stream(__name__, 'spec.schema') as schema_stream:
+        with TextIOWrapper(schema_stream) as text_stream:
+            schema = json.load(text_stream)
 
     validate(data, schema)
 
