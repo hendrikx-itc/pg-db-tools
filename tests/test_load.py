@@ -53,11 +53,12 @@ objects:
         - columns:
             - order_id
           references:
-            table: Order
+            table:
+              name: Order
+              schema: shop
             columns:
               - id
 """
-
 
 class TestLoad(unittest.TestCase):
 
