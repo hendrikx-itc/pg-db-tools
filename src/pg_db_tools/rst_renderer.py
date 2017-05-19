@@ -71,6 +71,13 @@ UNICODE_CHECKMARK = '\u2714'
 UNICODE_CROSS = '\u2718'
 
 
+def nullable_marker(nullable):
+    if nullable:
+        return UNICODE_CHECKMARK
+    else:
+        return UNICODE_CROSS
+
+
 def render_table(table):
     return (
         '{}\n'
@@ -86,7 +93,7 @@ def render_table(table):
                     (
                         column.name,
                         column.data_type,
-                        UNICODE_CHECKMARK if column.nullable else UNICODE_CROSS,
+                        nullable_marker(column.nullable),
                         column.description or ''
                     )
                     for column in table.columns
