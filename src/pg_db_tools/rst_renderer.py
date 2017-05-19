@@ -77,9 +77,9 @@ def render_table(table):
         header(2, 'Table ``{}``'.format(table.name)),
         '\n'.join(
             render_table_grid(
-                ['Column', 'Type', 'Description'],
+                ['Column', 'Type', 'Nullable', 'Description'],
                 [
-                    (column.name, column.data_type, column.description or '')
+                    (column.name, column.data_type, 'Y' if column.nullable else 'N', column.description or '')
                     for column in table.columns
                 ]
             )
