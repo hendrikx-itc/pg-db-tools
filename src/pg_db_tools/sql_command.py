@@ -2,8 +2,8 @@
 Provides the 'sql' sub-command including argument parsing
 """
 import argparse
-import codecs
 import sys
+from io import TextIOWrapper
 
 from pg_db_tools.pg_types import load
 from pg_db_tools.sql_renderer import SqlRenderer
@@ -37,12 +37,14 @@ def sql_command(args):
     """
     Entry point for the sql sub-command after parsing the arguments
     """
-    if args.out_encoding:
-        out_file = codecs.getwriter(args.out_encoding)(
-            args.output_file.detach()
-        )
+    if args.output_file:
+        # Open file in binary mode because encoding is configured later
+        out_file = open(args.output_file, 'wb')
     else:
-        out_file = args.output_file
+        # Get binary raw buffer for stdout because encoding is configured later
+        out_file = sys.stdout.buffer
+
+    out_file = TextIOWrapper(out_file, args.out_encoding)
 
     data = load(args.infile)
 
