@@ -1,3 +1,6 @@
+"""
+Provides the 'sql' sub-command including argument parsing
+"""
 import argparse
 import codecs
 import sys
@@ -7,6 +10,10 @@ from pg_db_tools.sql_renderer import SqlRenderer
 
 
 def setup_command_parser(subparsers):
+    """
+    Sets up a new sub parser for the sql command and adds it to the provided
+    subparsers
+    """
     parser_sql = subparsers.add_parser(
         'sql', help='command for generating SQL'
     )
@@ -27,6 +34,9 @@ def setup_command_parser(subparsers):
 
 
 def sql_command(args):
+    """
+    Entry point for the sql sub-command after parsing the arguments
+    """
     if args.out_encoding:
         out_file = codecs.getwriter(args.out_encoding)(
             args.output_file.detach()
