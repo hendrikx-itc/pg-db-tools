@@ -24,9 +24,12 @@ class DotRenderer:
 
             for table in schema.tables:
                 yield self.render_table_node(table)
-                yield self.render_table_edges(table)
 
             yield '  }\n'
+
+        for schema in database.schemas.values():
+            for table in schema.tables:
+                yield self.render_table_edges(table)
 
         yield '}\n'
 
