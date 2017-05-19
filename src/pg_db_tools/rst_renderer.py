@@ -67,6 +67,10 @@ def render_enum(pg_enum):
     )
 
 
+UNICODE_CHECKMARK = '\u2714'
+UNICODE_CROSS = '\u2718'
+
+
 def render_table(table):
     return (
         '{}\n'
@@ -79,7 +83,7 @@ def render_table(table):
             render_table_grid(
                 ['Column', 'Type', 'Nullable', 'Description'],
                 [
-                    (column.name, column.data_type, 'Y' if column.nullable else 'N', column.description or '')
+                    (column.name, column.data_type, UNICODE_CHECKMARK if column.nullable else UNICODE_CROSS, column.description or '')
                     for column in table.columns
                 ]
             )
