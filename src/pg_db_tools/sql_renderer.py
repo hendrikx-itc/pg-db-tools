@@ -58,7 +58,9 @@ class SqlRenderer:
         )]
 
     def render_schema_sql(self, schema):
-        yield [self.create_schema_statement(schema)]
+        # Assume the public schema already exists
+        if schema.name != 'public':
+            yield [self.create_schema_statement(schema)]
 
         for type_data in schema.types:
             yield self.render_type_sql(type_data)
