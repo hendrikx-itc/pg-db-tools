@@ -102,9 +102,12 @@ class DotRenderer:
         ).format(
             name=table.name,
             column_rows='\n'.join(
-                '  <tr><td>{attrs}</td><td port="{col_name}" align="left">{col_name}</td>'
+                '  <tr><td>{attrs}</td>'
+                '<td port="{col_name}" align="left">{col_name}</td>'
                 '<td align="left">{data_type}</td></tr>'.format(
-                    attrs='PK' if (table.primary_key and c.name in table.primary_key) else '',
+                    attrs='PK' if (
+                        table.primary_key and c.name in table.primary_key
+                    ) else '',
                     col_name=c.name,
                     data_type=c.data_type
                 )
