@@ -22,7 +22,7 @@ def setup_command_parser(subparsers):
         'infile', type=argparse.FileType('r', encoding='utf-8')
     )
     parser_sql.add_argument(
-        '--output-file', '-o', help='write output to file', default=sys.stdout
+        '--output-file', '-o', help='write output to file'
     )
     parser_sql.add_argument(
         '--if-not-exists', default=False, action='store_true',
