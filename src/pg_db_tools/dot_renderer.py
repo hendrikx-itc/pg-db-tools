@@ -17,10 +17,11 @@ class DotRenderer:
 
     def render_dot_chunks(self, database):
         yield 'digraph schema {\n'
+        yield '  outputorder=edgesfirst\n'
 
         for schema in sorted(database.schemas.values(), key=lambda s: s.name):
             yield '  subgraph cluster_{} {{\n'.format(schema.name)
-            yield '    label = "{}"'.format(schema.name)
+            yield '    label = "{}"\n'.format(schema.name)
 
             for table in schema.tables:
                 yield self.render_table_node(table)
@@ -42,7 +43,7 @@ class DotRenderer:
             '{indent}  label = {label}\n'
             '{indent}]\n'
         ).format(
-            indent='  ',
+            indent='    ',
             node_name=table_node_name(table.schema.name, table.name),
             href="{}{}".format(self.href_prefix, table.name.replace('_', '-')),
             label=self.render_table_html_label(table)
@@ -98,7 +99,7 @@ class DotRenderer:
 
     def render_table_html_label(self, table):
         return (
-            '<<table border="1" cellspacing="0" cellborder="0">\n'
+            '<<table border="1" bgcolor="white" cellspacing="0" cellborder="0">\n'
             '  <tr><td colspan="3" border="1" sides="B">{name}</td></tr>\n'
             '{column_rows}\n'
             '</table>>\n'

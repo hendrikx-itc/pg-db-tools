@@ -1,5 +1,5 @@
 import yaml
-from contextlib import closing
+import copy
 
 from io import TextIOWrapper
 from pkg_resources import resource_stream
@@ -13,7 +13,6 @@ DEFAULT_SCHEMA = 'public'
 
 class PgDatabase:
     def __init__(self):
-        self.name = None
         self.extensions = []
         self.schemas = {}
 
@@ -26,6 +25,17 @@ class PgDatabase:
             self.schemas[name] = schema
 
             return schema
+
+    def filter_objects(self, database_filter):
+        database = PgDatabase()
+        database.extensions = copy.copy(self.extensions)
+
+        database.schemas = {
+            name: schema.filter_objects(database_filter)
+            for name, schema in self.schemas.items()
+        }
+
+        return database
 
 
 def validate_schema(data):
@@ -90,6 +100,22 @@ class PgSchema:
         self.name = name
         self.types = []
         self.tables = []
+
+    def filter_objects(self, database_filter):
+        """
+        Return new PgSchema object containing only filtered types and tables
+        """
+        schema = PgSchema(self.name)
+
+        schema.types = list(
+            filter(database_filter.include_type, self.types)
+        )
+
+        schema.tables = list(
+            filter(database_filter.include_table, self.tables)
+        )
+
+        return schema
 
 
 class PgTable:
