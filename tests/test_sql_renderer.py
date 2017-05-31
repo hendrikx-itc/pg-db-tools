@@ -32,6 +32,8 @@ objects:
           data_type: integer
         - name: created
           data_type: timestamp with time zone
+          nullable: false
+          default: now()
       primary_key: ['id']
 
   - table:
@@ -79,5 +81,7 @@ class TestSqlRenderer(unittest.TestCase):
         out.seek(0)
 
         rendered_sql = out.read()
+
+        self.assertTrue('"created" timestamp with time zone NOT NULL DEFAULT now()' in rendered_sql)
 
         self.assertTrue(len(rendered_sql) > 0)

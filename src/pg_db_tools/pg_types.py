@@ -140,6 +140,7 @@ class PgColumn:
         self.data_type = data_type
         self.nullable = False
         self.description = None
+        self.default = None
 
     @staticmethod
     def load(database, data):
@@ -150,6 +151,7 @@ class PgColumn:
 
         column.description = data.get('description')
         column.nullable = data.get('nullable', True)
+        column.default = data.get('default', None)
 
         return column
 

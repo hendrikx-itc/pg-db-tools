@@ -170,6 +170,9 @@ class SqlRenderer:
         if column.nullable is False:
             parts.append('NOT NULL')
 
+        if column.default:
+            parts.append('DEFAULT {}'.format(column.default))
+
         return ' '.join(parts)
 
     def render_exclude_constraint(self, exclude_data):
