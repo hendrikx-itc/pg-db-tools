@@ -19,6 +19,6 @@ setup(
         'pg_db_tools': ['spec.schema']
     },
     scripts=[
-        'scripts/compile-db-schema'
+        'scripts/db-schema'
     ]
 )

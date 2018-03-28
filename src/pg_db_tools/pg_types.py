@@ -130,6 +130,10 @@ class PgTable:
         self.description = None
 
     @staticmethod
+    def load_from_db(database, conn, oid):
+
+
+    @staticmethod
     def load(database, data):
         schema = database.register_schema(data.get('schema', DEFAULT_SCHEMA))
 
