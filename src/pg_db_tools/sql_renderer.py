@@ -143,7 +143,7 @@ class SqlRenderer:
             yield '  {}'.format(self.render_column_definition(column_data))
 
         if table.primary_key:
-            yield '  PRIMARY KEY ({})'.format(', '.join(table.primary_key))
+            yield '  PRIMARY KEY ({})'.format(', '.join(table.primary_key.columns))
 
         if table.unique:
             for unique_constraint in table.unique:

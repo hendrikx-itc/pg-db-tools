@@ -91,9 +91,17 @@
                             }
                         },
                         "primary_key": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                },
+                                "columns": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                }
                             }
                         },
                         "foreign_keys": {

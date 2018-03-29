@@ -1,6 +1,7 @@
 """
 Provides the 'sql' sub-command including argument parsing
 """
+import sys
 from contextlib import closing
 
 import psycopg2
@@ -31,13 +32,20 @@ def from_db_command(args):
 def load_schemas(conn):
     database = PgDatabase()
 
-    query = "SELECT oid, relname FROM pg_class WHERE relkind = %s"
+    query = (
+        "SELECT pg_class.oid "
+        "FROM pg_class "
+        "JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace "
+        "WHERE relkind = %s AND NOT pg_namespace.nspname = ANY(ARRAY['public', 'pg_catalog'])"
+    )
 
     with closing(conn.cursor()) as cursor:
         cursor.execute(query, ('r',))
 
         rows = cursor.fetchall()
 
-        for row in rows:
-            PgTable()
-            print(row)
+        for oid in rows:
+            table = PgTable.load_from_db(database, conn, oid)
+
+            for line in table.to_yaml():
+                sys.stdout.write(line)
