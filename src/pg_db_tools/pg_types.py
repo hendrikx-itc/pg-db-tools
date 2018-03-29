@@ -188,7 +188,7 @@ class PgTable:
             schema,
             data['name'],
             [
-                PgColumn.load(database, column_data)
+                PgColumn.load(column_data)
                 for column_data in data['columns']
             ]
         )
