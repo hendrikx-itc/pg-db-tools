@@ -21,7 +21,9 @@ objects:
           data_type: integer
         - name: created
           data_type: timestamp with time zone
-      primary_key: ['id']
+      primary_key:
+        name: pk
+        columns: ['id']
 
   - table:
       name: OrderLine
@@ -40,7 +42,8 @@ objects:
         - name: amount
           data_type: integer
       foreign_keys:
-        - columns:
+        - name: test
+          columns:
             - order_id
           references:
             table:
