@@ -4,35 +4,27 @@ from pg_db_tools import iter_join
 from pg_db_tools.pg_types import PgEnum
 
 
-class SqlFunctionRenderer:
-    def __init__(self, pg_function):
-        self.pg_function = pg_function
-
-    def to_sql(self):
-        return [
-            'CREATE FUNCTION "{}"."{}"({})'.format(
-                self.pg_function.schema.name, self.pg_function.name,
-                ', '.join(SqlArgumentRenderer(argument).to_sql() for argument in self.pg_function.arguments)
-            ),
-            '    RETURNS {}'.format(self.pg_function.return_type),
-            'AS $$',
-            str(self.pg_function.src),
-            '$$ LANGUAGE {}'.format(self.pg_function.language)
-        ]
+def render_function(pg_function):
+    return [
+        'CREATE FUNCTION "{}"."{}"({})'.format(
+            pg_function.schema.name, pg_function.name,
+            ', '.join(render_argument(argument) for argument in pg_function.arguments)
+        ),
+        '    RETURNS {}'.format(pg_function.return_type),
+        'AS $$',
+        str(pg_function.src),
+        '$$ LANGUAGE {}'.format(pg_function.language)
+    ]
 
 
-class SqlArgumentRenderer:
-    def __init__(self, pg_argument):
-        self.pg_argument = pg_argument
-
-    def to_sql(self):
-        if self.pg_argument.name is None:
-            return str(self.pg_argument.data_type)
-        else:
-            return '{} {}'.format(
-                self.pg_argument.name,
-                str(self.pg_argument.data_type)
-            )
+def render_argument(pg_argument):
+    if pg_argument.name is None:
+        return str(pg_argument.data_type)
+    else:
+        return '{} {}'.format(
+            pg_argument.name,
+            str(pg_argument.data_type)
+        )
 
 
 class SqlRenderer:
@@ -100,7 +92,7 @@ class SqlRenderer:
             yield self.render_table_sql(table)
 
         for pg_function in schema.functions:
-            yield SqlFunctionRenderer(pg_function).to_sql()
+            yield render_function(pg_function)
             yield ['']
 
     def create_schema_statement(self, schema):
