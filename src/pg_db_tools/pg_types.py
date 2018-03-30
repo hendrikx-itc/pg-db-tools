@@ -2,6 +2,7 @@ import copy
 from contextlib import closing
 import json
 from io import TextIOWrapper
+from collections import OrderedDict
 
 import itertools
 from pkg_resources import resource_stream
@@ -62,16 +63,13 @@ class PgDatabase:
 
         return database
 
-    def to_yaml(self):
-        parts = [
-            'objects:\n'
-        ]
-        parts.extend(
-            schema.to_yaml()
-            for schema in self.schemas.values()
-         )
-
-        return itertools.chain(*parts)
+    def to_json(self):
+        return OrderedDict(
+            objects=list(itertools.chain(*(
+                schema.to_json()
+                for schema in self.schemas.values()
+            )))
+        )
 
 
 def validate_schema(data):
@@ -213,13 +211,17 @@ class PgSchema:
 
         return schema
 
-    def to_yaml(self):
-        parts = []
-
-        parts.extend((table.to_yaml() for table in self.tables))
-        parts.extend((func.to_yaml() for func in self.functions))
-
-        return itertools.chain(*parts)
+    def to_json(self):
+        return list(itertools.chain(
+            (
+                OrderedDict([('table', table.to_json())])
+                for table in self.tables
+            ),
+            (
+                OrderedDict([('function', func.to_json())])
+                for func in self.functions
+            )
+        ))
 
 
 class PgTable:
@@ -315,59 +317,26 @@ class PgTable:
 
         return table
 
-    def to_yaml(self):
-        parts = [
-            (
-                '  - table:\n',
-                '      name: {}\n'.format(self.name),
-                '      schema: {}\n'.format(self.schema.name),
-                '      columns:\n'
-            )
-        ]
-
-        parts.extend(
-            (
-                '        - name: {}\n'.format(column.name),
-                '          data_type: {}\n'.format(column.data_type)
-            )
-            for column in self.columns
-        )
-
-        if self.primary_key is not None:
-            parts.append(
-                (
-                    '      primary_key:\n',
-                    '        name: {}\n'.format(self.primary_key.name),
-                    '        columns: [{}]\n'.format(', '.join('"{}"'.format(name) for name in self.primary_key.columns))
-                )
-            )
-
-        if self.foreign_keys:
-            parts.append(
-                (
-                    '      foreign_keys:\n'
-                )
-            )
-            for foreign_key in self.foreign_keys:
-                parts.append(
-                    (
-                        '        - name: {}\n'.format(foreign_key.name),
-                        '          columns: [{}]\n'.format(', '.join('"{}"'.format(column) for column in foreign_key.columns)),
-                        '          references:\n',
-                        '            table:\n',
-                        '              name: {}\n'.format(foreign_key.ref_table_name),
-                        '              schema: {}\n'.format(foreign_key.ref_schema_name),
-                        '            columns: [{}]\n'.format(', '.join('"{}"'.format(column) for column in foreign_key.ref_columns))
-                    )
-                )
-
-        return itertools.chain(*parts)
+    def to_json(self):
+        return OrderedDict([
+            ('name', self.name),
+            ('schema', self.schema.name),
+            ('columns', [column.to_json() for column in self.columns]),
+            ('primary_key', self.primary_key.to_json()),
+            ('foreign_keys', [foreign_key.to_json() for foreign_key in self.foreign_keys])
+        ])
 
 
 class PgPrimaryKey:
     def __init__(self, name, columns):
         self.name = name
         self.columns = columns
+
+    def to_json(self):
+        return OrderedDict([
+            ('name', self.name),
+            ('columns', self.columns)
+        ])
 
     @staticmethod
     def load_from_db(conn, table_oid):
@@ -423,6 +392,15 @@ class PgColumn:
         self.description = None
         self.default = None
 
+    def to_json(self):
+        return OrderedDict([
+            ('name', self.name),
+            ('data_type', self.data_type.to_json()),
+            ('nullable', self.nullable),
+            ('description', self.description),
+            ('default', self.default)
+        ])
+
     @staticmethod
     def load(data):
         column = PgColumn(
@@ -444,6 +422,19 @@ class PgForeignKey:
         self.ref_table_name = ref_table_name
         self.ref_schema_name = ref_schema_name
         self.ref_columns = ref_columns
+
+    def to_json(self):
+        return OrderedDict([
+            ('name', self.name),
+            ('columns', self.columns),
+            ('references', OrderedDict([
+                ('table', OrderedDict([
+                    ('name', self.ref_table_name),
+                    ('schema', self.ref_schema_name)
+                ])),
+                ('columns', self.ref_columns)
+            ]))
+        ])
 
     @staticmethod
     def load_from_db_for_table(conn, table_oid):
@@ -534,28 +525,22 @@ class PgFunction:
         self.src = None
         self.language = None
 
-    def to_yaml(self):
-        parts = [
-            '  - function:\n',
-            '      name: {}\n'.format(self.name),
-            '      schema: {}\n'.format(self.schema.name),
-            '      return_type: {}\n'.format(self.return_type),
-            '      language: {}\n'.format(self.language),
-            '      arguments:\n'
-        ]
-
-        parts.extend(
-            '        - name: {}\n          data_type: {}\n'.format(argname, argtype)
-            for argname, argtype
-            in zip(self.arg_names, self.arg_types)
-        )
-
-        parts.extend((
-            '      source: |\n',
-            '{}\n'.format(indent_multi_line(8, self.src.strip()))
-        ))
-
-        return itertools.chain(*parts)
+    def to_json(self):
+        return OrderedDict([
+            ('name', self.name),
+            ('schema', self.schema.name),
+            ('return_type', self.return_type),
+            ('language', self.language),
+            ('arguments', [
+                OrderedDict([
+                    ('name', arg_name),
+                    ('data_type', arg_type.to_json())
+                ])
+                for arg_name, arg_type
+                in zip(self.arg_names, self.arg_types)
+            ]),
+            ('source', self.src)
+        ])
 
     @staticmethod
     def load_from_db(conn, schema, oid):
@@ -578,7 +563,7 @@ class PgFunction:
 
         pg_function = PgFunction(schema, name, arg_types, return_type)
         pg_function.language = language
-        pg_function.src = src
+        pg_function.src = PgSourceCode(src.strip())
 
         pg_function.arg_types = arg_types
         pg_function.arg_names = arg_names
@@ -625,5 +610,12 @@ class PgDataType:
     def __init__(self, name):
         self.name = name
 
+    def to_json(self):
+        return str(self)
+
     def __str__(self):
         return data_type_mapping.get(self.name, self.name)
+
+
+class PgSourceCode(str):
+    pass

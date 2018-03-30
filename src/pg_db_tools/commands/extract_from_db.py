@@ -3,10 +3,13 @@ Provides the 'sql' sub-command including argument parsing
 """
 import sys
 from contextlib import closing
+from collections import OrderedDict
+import json
 
 import psycopg2
+import yaml
 
-from pg_db_tools.pg_types import PgTable, PgDatabase, PgSchema
+from pg_db_tools.pg_types import PgTable, PgDatabase, PgSchema, PgSourceCode
 
 
 def setup_command_parser(subparsers):
@@ -16,6 +19,11 @@ def setup_command_parser(subparsers):
     """
     parser_extract = subparsers.add_parser(
         'from-db', help='command for extracting schema from live database'
+    )
+
+    parser_extract.add_argument(
+        '--format', default='yaml', choices=['yaml', 'json'],
+        help='format of output'
     )
 
     parser_extract.add_argument(
@@ -32,5 +40,59 @@ def from_db_command(args):
     with closing(psycopg2.connect('')) as conn:
         database = PgDatabase.load_from_db(conn, args.schemas)
 
-    for line in database.to_yaml():
-        sys.stdout.write(line)
+    try:
+        formatters[args.format](database.to_json())
+    except KeyError:
+        raise Exception('unsupported format: {}'.format(args.format))
+
+
+def format_json(data):
+    json.dump(data, sys.stdout, indent=2)
+
+
+def format_yaml(data):
+    yaml.SafeDumper.add_representer(
+        OrderedDict,
+        lambda dumper, value: represent_odict(
+            dumper, u'tag:yaml.org,2002:map',
+            value)
+    )
+    yaml.SafeDumper.add_representer(PgSourceCode, source_code_presenter)
+
+    yaml.safe_dump(data, sys.stdout, default_flow_style=False)
+
+
+formatters = {
+    'json': format_json,
+    'yaml': format_yaml
+}
+
+
+def source_code_presenter(dumper, data):
+    return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
+
+
+def represent_odict(dump, tag, mapping, flow_style=None):
+    """Like BaseRepresenter.represent_mapping, but does not issue the sort().
+    """
+    value = []
+    node = yaml.MappingNode(tag, value, flow_style=flow_style)
+    if dump.alias_key is not None:
+        dump.represented_objects[dump.alias_key] = node
+    best_style = True
+    if hasattr(mapping, 'items'):
+        mapping = mapping.items()
+    for item_key, item_value in mapping:
+        node_key = dump.represent_data(item_key)
+        node_value = dump.represent_data(item_value)
+        if not (isinstance(node_key, yaml.ScalarNode) and not node_key.style):
+            best_style = False
+        if not (isinstance(node_value, yaml.ScalarNode) and not node_value.style):
+            best_style = False
+        value.append((node_key, node_value))
+    if flow_style is None:
+        if dump.default_flow_style is not None:
+            node.flow_style = dump.default_flow_style
+        else:
+            node.flow_style = best_style
+    return node
