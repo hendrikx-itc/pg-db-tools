@@ -17,6 +17,30 @@ class PgDatabase:
         self.extensions = []
         self.schemas = {}
 
+    @staticmethod
+    def load_from_db(conn, include_schemas):
+        database = PgDatabase()
+
+        query = (
+            "SELECT pg_namespace.oid "
+            "FROM pg_namespace "
+            "WHERE pg_namespace.nspname = ANY(%s)"
+        )
+
+        query_args = (include_schemas,)
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query, query_args)
+
+            rows = cursor.fetchall()
+
+        database.schemas = {
+            schema.name: schema
+            for schema in (PgSchema.load_from_db(conn, oid) for oid, in rows)
+        }
+
+        return database
+
     def register_schema(self, name):
         if name in self.schemas:
             return self.schemas.get(name)
@@ -37,6 +61,17 @@ class PgDatabase:
         }
 
         return database
+
+    def to_yaml(self):
+        parts = [
+            'objects:\n'
+        ]
+        parts.extend(
+            schema.to_yaml()
+            for schema in self.schemas.values()
+         )
+
+        return itertools.chain(*parts)
 
 
 def validate_schema(data):
@@ -101,6 +136,66 @@ class PgSchema:
         self.name = name
         self.types = []
         self.tables = []
+        self.functions = []
+
+    @staticmethod
+    def load_from_db(conn, oid):
+        query = (
+            "SELECT pg_namespace.nspname "
+            "FROM pg_namespace "
+            "WHERE oid = %s"
+        )
+
+        query_args = (oid,)
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query, query_args)
+
+            name, = cursor.fetchone()
+
+        schema = PgSchema(name)
+        schema.tables = PgSchema.load_tables(conn, schema, oid)
+        schema.functions = PgSchema.load_functions(conn, schema, oid)
+
+        return schema
+
+    @staticmethod
+    def load_tables(conn, schema, schema_oid):
+        query = (
+            "SELECT pg_class.oid "
+            "FROM pg_class "
+            "WHERE relkind = %s AND pg_class.relnamespace = %s"
+        )
+
+        query_args = ('r', schema_oid)
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query, query_args)
+
+            rows = cursor.fetchall()
+
+        return [
+            PgTable.load_from_db(conn, schema, oid) for oid, in rows
+        ]
+
+    @staticmethod
+    def load_functions(conn, schema, schema_oid):
+        query = (
+            "SELECT oid "
+            "FROM pg_proc "
+            "WHERE pronamespace = %s"
+        )
+
+        query_args = (schema_oid,)
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query, query_args)
+
+            rows = cursor.fetchall()
+
+        return [
+            PgFunction.load_from_db(conn, schema, oid) for oid, in rows
+        ]
 
     def filter_objects(self, database_filter):
         """
@@ -118,6 +213,14 @@ class PgSchema:
 
         return schema
 
+    def to_yaml(self):
+        parts = []
+
+        parts.extend((table.to_yaml() for table in self.tables))
+        parts.extend((func.to_yaml() for func in self.functions))
+
+        return itertools.chain(*parts)
+
 
 class PgTable:
     def __init__(self, schema, name, columns):
@@ -134,7 +237,7 @@ class PgTable:
         return '"{}"."{}"'.format(self.schema.name, self.name)
 
     @staticmethod
-    def load_from_db(database, conn, oid):
+    def load_from_db(conn, schema, oid):
         query = (
             'SELECT nspname, relname '
             'FROM pg_class '
@@ -147,8 +250,6 @@ class PgTable:
             cursor.execute(query, query_args)
 
             schema_name, table_name = cursor.fetchone()
-
-        schema = database.register_schema(schema_name)
 
         table = PgTable(
             schema,
@@ -164,9 +265,10 @@ class PgTable:
     @staticmethod
     def load_columns_from_db(conn, table_oid):
         query = (
-            'SELECT attname, format_type(atttypid, atttypmod) '
+            'SELECT attname, pg_type.typname '
             'FROM pg_attribute '
-            'WHERE attrelid = %s AND attnum > 0'
+            'JOIN pg_type ON pg_type.oid = pg_attribute.atttypid '
+            'WHERE attrelid = %s AND attnum > 0 AND not attisdropped'
         )
         query_args = (table_oid,)
 
@@ -176,7 +278,7 @@ class PgTable:
             rows = cursor.fetchall()
 
         return [
-            PgColumn(attname, data_type)
+            PgColumn(attname, PgDataType(data_type))
             for attname, data_type in rows
         ]
 
@@ -413,3 +515,115 @@ class PgEnum:
         schema.types.append(enum)
 
         return enum
+
+
+def indent(cols, line):
+    return cols * ' ' + line
+
+
+def indent_multi_line(cols, text):
+    return '\n'.join(indent(cols, line) for line in text.splitlines())
+
+
+class PgFunction:
+    def __init__(self, schema, name, arg_types, return_type):
+        self.schema = schema
+        self.name = name
+        self.arg_types = arg_types
+        self.return_type = return_type
+        self.src = None
+        self.language = None
+
+    def to_yaml(self):
+        parts = [
+            '  - function:\n',
+            '      name: {}\n'.format(self.name),
+            '      schema: {}\n'.format(self.schema.name),
+            '      return_type: {}\n'.format(self.return_type),
+            '      language: {}\n'.format(self.language),
+            '      arguments:\n'
+        ]
+
+        parts.extend(
+            '        - name: {}\n          data_type: {}\n'.format(argname, argtype)
+            for argname, argtype
+            in zip(self.arg_names, self.arg_types)
+        )
+
+        parts.extend((
+            '      source: |\n',
+            '{}\n'.format(indent_multi_line(8, self.src.strip()))
+        ))
+
+        return itertools.chain(*parts)
+
+    @staticmethod
+    def load_from_db(conn, schema, oid):
+        query = (
+            'SELECT proname, return_type.typname, pg_language.lanname, prosrc '
+            'FROM pg_proc '
+            'JOIN pg_language ON pg_language.oid = pg_proc.prolang '
+            'JOIN pg_type AS return_type ON return_type.oid = pg_proc.prorettype '
+            'WHERE pg_proc.oid = %s'
+        )
+
+        query_args = (oid, )
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query, query_args)
+
+            name, return_type, language, src = cursor.fetchone()
+
+        arg_types, arg_names = PgFunction.load_args_from_db(conn, oid)
+
+        pg_function = PgFunction(schema, name, arg_types, return_type)
+        pg_function.language = language
+        pg_function.src = src
+
+        pg_function.arg_types = arg_types
+        pg_function.arg_names = arg_names
+
+        return pg_function
+
+    @staticmethod
+    def load_args_from_db(conn, oid):
+        query = (
+            'select array_agg(pg_type.typname), array_agg(proc.proargname) '
+            'from ('
+            'select oid, unnest(proargtypes) as proargtype, unnest(proargnames) proargname '
+            'from pg_proc'
+            ') proc '
+            'join pg_type on pg_type.oid = proc.proargtype '
+            'where proc.oid = %s '
+            'group by proc.oid'
+        )
+
+        query_args = (oid, )
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query, query_args)
+
+            if cursor.rowcount:
+                arg_types, arg_names = cursor.fetchone()
+
+                return (
+                    [PgDataType(arg_type) for arg_type in arg_types],
+                    arg_names
+                )
+            else:
+                return [], []
+
+
+data_type_mapping = {
+    'int2': 'smallint',
+    'int4': 'integer',
+    'int8': 'bigint'
+}
+
+
+class PgDataType:
+    def __init__(self, name):
+        self.name = name
+
+    def __str__(self):
+        return data_type_mapping.get(self.name, self.name)

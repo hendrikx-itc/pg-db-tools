@@ -110,7 +110,7 @@ class DotRenderer:
                 '<td port="{col_name}" align="left">{col_name}</td>'
                 '<td align="left">{data_type}</td></tr>'.format(
                     attrs='PK' if (
-                        table.primary_key and c.name in table.primary_key
+                        table.primary_key and c.name in table.primary_key.columns
                     ) else '',
                     col_name=c.name,
                     data_type=c.data_type
