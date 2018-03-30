@@ -1,10 +1,10 @@
 PostgreSQL Database Tools
 =========================
 
-The tools in this project are meant to be used in the designing, creation and
+The tools in this project are meant to be used in the design, creation and
 maintenance of PostgreSQL databases. So this is specifically not meant as a
-cross database toolset, because that usually cause compatibility headaches and
-multiply partially supported database engines.
+cross database toolset, because that usually causes compatibility headaches and
+multiple partially supported database engines.
 
 Description Format
 ------------------
