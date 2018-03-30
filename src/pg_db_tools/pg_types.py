@@ -318,13 +318,21 @@ class PgTable:
         return table
 
     def to_json(self):
-        return OrderedDict([
+        attributes = [
             ('name', self.name),
             ('schema', self.schema.name),
-            ('columns', [column.to_json() for column in self.columns]),
-            ('primary_key', self.primary_key.to_json()),
-            ('foreign_keys', [foreign_key.to_json() for foreign_key in self.foreign_keys])
-        ])
+            ('columns', [column.to_json() for column in self.columns])
+        ]
+
+        if self.primary_key is not None:
+            attributes.append(('primary_key', self.primary_key.to_json()))
+
+        if len(self.foreign_keys) > 0:
+            attributes.append(
+                ('foreign_keys', [foreign_key.to_json() for foreign_key in self.foreign_keys])
+            )
+
+        return OrderedDict(attributes)
 
 
 class PgPrimaryKey:
