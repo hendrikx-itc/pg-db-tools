@@ -106,8 +106,6 @@ def load(infile):
         for object_data in data['objects']
     ]
 
-    tables = [object for object in objects if type(object) is PgTable]
-
     return database
 
 
@@ -125,6 +123,8 @@ def load_object(database, object_data):
 
     if object_type == 'table':
         return PgTable.load(database, object_data)
+    elif object_type == 'function':
+        return PgFunction.load(database, object_data)
     else:
         raise Exception('Unsupported object type: {}'.format(object_type))
 
@@ -393,13 +393,19 @@ class PgColumn:
         self.default = None
 
     def to_json(self):
-        return OrderedDict([
+        attributes = [
             ('name', self.name),
             ('data_type', self.data_type.to_json()),
-            ('nullable', self.nullable),
-            ('description', self.description),
-            ('default', self.default)
-        ])
+            ('nullable', self.nullable)
+        ]
+
+        if self.description is not None:
+            attributes.append(('description', self.description))
+
+        if self.default is not None:
+            attributes.append(('default', self.default))
+
+        return OrderedDict(attributes)
 
     @staticmethod
     def load(data):
@@ -524,6 +530,22 @@ class PgFunction:
         self.return_type = return_type
         self.src = None
         self.language = None
+        self.description = None
+
+    @staticmethod
+    def load(database, data):
+        schema = database.register_schema(data['schema'])
+
+        pg_function = PgFunction(
+            schema,
+            data['name'],
+            [argument['data_type'] for argument in data['arguments']],
+            [argument['name'] for argument in data['arguments']]
+        )
+
+        schema.functions.append(pg_function)
+
+        return pg_function
 
     def to_json(self):
         return OrderedDict([

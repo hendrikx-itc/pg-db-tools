@@ -22,7 +22,8 @@
             "items": {
                 "type": "object",
                 "oneOf": [
-                    { "$ref": "#/definitions/table" }
+                    { "$ref": "#/definitions/table" },
+                    { "$ref": "#/definitions/function" }
                 ]
             }
         }
@@ -37,11 +38,11 @@
                     "properties": {
                         "name": {
                             "type": "string",
-                            "description": "Name of table"
+                            "description": "Name of enum"
                         },
                         "schema": {
                             "type": "string",
-                            "description": "Schema containing table"
+                            "description": "Schema containing enum"
                         },
                         "values": {
                             "type": "array",
@@ -52,6 +53,33 @@
                     }
                 }
             }
+        },
+        "function": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "column": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "data_type": {
+                    "type": "string"
+                },
+                "nullable": {
+                    "type": "boolean",
+                    "description": "Can this column contain null values?"
+                },
+                "description": {
+                    "type": "string"
+                }
+            },
+            "required": ["name", "data_type"]
         },
         "table": {
             "type": "object",
@@ -70,25 +98,7 @@
                         },
                         "columns": {
                             "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "name": {
-                                        "type": "string"
-                                    },
-                                    "data_type": {
-                                        "type": "string"
-                                    },
-                                    "nullable": {
-                                        "type": "boolean",
-                                        "description": "Can this column contain null values?"
-                                    },
-                                    "description": {
-                                        "type": "string"
-                                    }
-                                },
-                                "required": ["name", "data_type"]
-                            }
+                            "items": { "$ref": "#/definitions/enum" }
                         },
                         "primary_key": {
                             "type": "object",

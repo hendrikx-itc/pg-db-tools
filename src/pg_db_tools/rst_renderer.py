@@ -22,6 +22,9 @@ def render_rst_chunks(database):
         for table in schema.tables:
             yield render_table(table)
 
+        for pg_function in schema.functions:
+            yield render_function(pg_function)
+
 
 header_level_symbol = {
     1: '=',
@@ -76,6 +79,15 @@ def nullable_marker(nullable):
         return UNICODE_CHECKMARK
     else:
         return UNICODE_CROSS
+
+
+def render_function(pg_function):
+    return (
+        '{}\n'
+        '\n'
+    ).format(
+        header(2, 'Function ``{}``'.format(pg_function.name))
+    )
 
 
 def render_table(table):
