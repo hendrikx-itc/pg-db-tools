@@ -522,19 +522,11 @@ class PgEnum:
         return enum
 
 
-def indent(cols, line):
-    return cols * ' ' + line
-
-
-def indent_multi_line(cols, text):
-    return '\n'.join(indent(cols, line) for line in text.splitlines())
-
-
 class PgFunction:
-    def __init__(self, schema, name, arg_types, return_type):
+    def __init__(self, schema, name, arguments, return_type):
         self.schema = schema
         self.name = name
-        self.arg_types = arg_types
+        self.arguments = arguments
         self.return_type = return_type
         self.src = None
         self.language = None
@@ -547,38 +539,48 @@ class PgFunction:
         pg_function = PgFunction(
             schema,
             data['name'],
-            [argument['data_type'] for argument in data['arguments']],
-            [argument['name'] for argument in data['arguments']]
+            [PgArgument.from_json(argument) for argument in data['arguments']],
+            data['return_type']
         )
+
+        pg_function.language = data.get('language')
+        pg_function.src = PgSourceCode(data['source'])
+        pg_function.description = data.get('description')
 
         schema.functions.append(pg_function)
 
         return pg_function
 
     def to_json(self):
-        return OrderedDict([
+        attributes = [
             ('name', self.name),
             ('schema', self.schema.name),
             ('return_type', self.return_type),
             ('language', self.language),
             ('arguments', [
-                OrderedDict([
-                    ('name', arg_name),
-                    ('data_type', arg_type.to_json())
-                ])
-                for arg_name, arg_type
-                in zip(self.arg_names, self.arg_types)
-            ]),
-            ('source', self.src)
-        ])
+                argument.to_json()
+                for argument
+                in self.arguments
+            ])
+        ]
+
+        if self.description is not None:
+            attributes.append(
+                ('description', self.description)
+            )
+
+        attributes.append(('source', self.src))
+
+        return OrderedDict(attributes)
 
     @staticmethod
     def load_from_db(conn, schema, oid):
         query = (
-            'SELECT proname, return_type.typname, pg_language.lanname, prosrc '
+            'SELECT proname, return_type.typname, pg_language.lanname, prosrc, description '
             'FROM pg_proc '
             'JOIN pg_language ON pg_language.oid = pg_proc.prolang '
             'JOIN pg_type AS return_type ON return_type.oid = pg_proc.prorettype '
+            'LEFT JOIN pg_description ON pg_description.objoid = pg_proc.oid '
             'WHERE pg_proc.oid = %s'
         )
 
@@ -587,16 +589,16 @@ class PgFunction:
         with closing(conn.cursor()) as cursor:
             cursor.execute(query, query_args)
 
-            name, return_type, language, src = cursor.fetchone()
+            name, return_type, language, src, description = cursor.fetchone()
 
-        arg_types, arg_names = PgFunction.load_args_from_db(conn, oid)
+        arguments = PgFunction.load_args_from_db(conn, oid)
 
-        pg_function = PgFunction(schema, name, arg_types, return_type)
+        pg_function = PgFunction(schema, name, arguments, return_type)
         pg_function.language = language
         pg_function.src = PgSourceCode(src.strip())
 
-        pg_function.arg_types = arg_types
-        pg_function.arg_names = arg_names
+        if description is not None:
+            pg_function.description = PgDescription(description)
 
         return pg_function
 
@@ -621,12 +623,13 @@ class PgFunction:
             if cursor.rowcount:
                 arg_types, arg_names = cursor.fetchone()
 
-                return (
-                    [PgDataType(arg_type) for arg_type in arg_types],
-                    arg_names
-                )
+                return [
+                    PgArgument(arg_name, PgDataType(arg_type), None, None)
+                    for arg_name, arg_type
+                    in zip(arg_names, arg_types)
+                ]
             else:
-                return [], []
+                return []
 
 
 data_type_mapping = {
@@ -649,3 +652,32 @@ class PgDataType:
 
 class PgSourceCode(str):
     pass
+
+
+class PgDescription(str):
+    pass
+
+
+class PgArgument:
+    def __init__(self, name, data_type, mode, default):
+        self.name = name
+        self.data_type = data_type
+        self.mode = mode
+        self.default = default
+
+    @staticmethod
+    def from_json(data):
+        return PgArgument(
+            data['name'],
+            PgDataType(data['data_type']),
+            data.get('mode'),
+            data.get('default')
+        )
+
+    def to_json(self):
+        attributes = [
+            ('name', self.name),
+            ('data_type', self.data_type.to_json())
+        ]
+
+        return OrderedDict(attributes)

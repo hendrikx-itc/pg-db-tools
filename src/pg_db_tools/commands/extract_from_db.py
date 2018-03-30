@@ -9,7 +9,7 @@ import json
 import psycopg2
 import yaml
 
-from pg_db_tools.pg_types import PgTable, PgDatabase, PgSchema, PgSourceCode
+from pg_db_tools.pg_types import PgDatabase, PgSourceCode, PgDescription
 
 
 def setup_command_parser(subparsers):
@@ -24,6 +24,10 @@ def setup_command_parser(subparsers):
     parser_extract.add_argument(
         '--format', default='yaml', choices=['yaml', 'json'],
         help='format of output'
+    )
+
+    parser_extract.add_argument(
+        '--owner', help='filter objects owned by specified user'
     )
 
     parser_extract.add_argument(
@@ -57,7 +61,9 @@ def format_yaml(data):
             dumper, u'tag:yaml.org,2002:map',
             value)
     )
-    yaml.SafeDumper.add_representer(PgSourceCode, source_code_presenter)
+    yaml.SafeDumper.add_representer(PgSourceCode, source_code_representer)
+    yaml.SafeDumper.add_representer(PgDescription, description_representer)
+
 
     yaml.safe_dump(data, sys.stdout, default_flow_style=False)
 
@@ -68,7 +74,11 @@ formatters = {
 }
 
 
-def source_code_presenter(dumper, data):
+def source_code_representer(dumper, data):
+    return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
+
+
+def description_representer(dumper, data):
     return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
 
 
