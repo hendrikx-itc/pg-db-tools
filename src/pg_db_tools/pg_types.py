@@ -675,9 +675,11 @@ class PgArgument:
         )
 
     def to_json(self):
-        attributes = [
-            ('name', self.name),
-            ('data_type', self.data_type.to_json())
-        ]
+        attributes = []
+
+        if self.name is not None:
+            attributes.append(('name', self.name))
+
+        attributes.append(('data_type', self.data_type.to_json()))
 
         return OrderedDict(attributes)
