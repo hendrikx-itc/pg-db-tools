@@ -267,9 +267,8 @@ class PgTable:
     @staticmethod
     def load_columns_from_db(conn, table_oid):
         query = (
-            'SELECT attname, pg_type.typname '
+            'SELECT attrelid, attnum '
             'FROM pg_attribute '
-            'JOIN pg_type ON pg_type.oid = pg_attribute.atttypid '
             'WHERE attrelid = %s AND attnum > 0 AND not attisdropped'
         )
         query_args = (table_oid,)
@@ -280,8 +279,8 @@ class PgTable:
             rows = cursor.fetchall()
 
         return [
-            PgColumn(attname, PgDataType(data_type))
-            for attname, data_type in rows
+            PgColumn.load_from_db(conn, attrelid, attnum)
+            for attrelid, attnum in rows
         ]
 
     @staticmethod
@@ -425,6 +424,29 @@ class PgColumn:
         column.description = data.get('description')
         column.nullable = data.get('nullable', True)
         column.default = data.get('default', None)
+
+        return column
+
+    @staticmethod
+    def load_from_db(conn, attrelid, attnum):
+        query = (
+            'SELECT attname, pg_type.typname, pg_description.description '
+            'FROM pg_attribute '
+            'JOIN pg_type ON pg_type.oid = pg_attribute.atttypid '
+            'LEFT JOIN pg_description ON pg_description.objoid = pg_attribute.attrelid AND pg_description.objsubid = pg_attribute.attnum '
+            'WHERE pg_attribute.attrelid = %s AND pg_attribute.attnum = %s'
+        )
+        query_args = (attrelid, attnum)
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query, query_args)
+
+            attname, data_type, description = cursor.fetchone()
+
+        column = PgColumn(attname, PgDataType(data_type))
+
+        if description is not None:
+            column.description = PgDescription(description)
 
         return column
 
