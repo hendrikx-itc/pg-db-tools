@@ -10,7 +10,7 @@ setup(
     url='http://www.hendrikx-itc.nl',
     packages=['pg_db_tools'],
     install_requires=[
-        'PyYAML', 'jsonschema'
+        'PyYAML', 'jsonschema', 'networkx'
     ],
     package_dir={
         '': 'src'

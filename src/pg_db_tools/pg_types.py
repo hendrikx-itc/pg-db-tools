@@ -3,8 +3,9 @@ from contextlib import closing
 import json
 from io import TextIOWrapper
 from collections import OrderedDict
-
+from operator import itemgetter
 import itertools
+
 from pkg_resources import resource_stream
 import yaml
 from jsonschema import validate
@@ -17,28 +18,29 @@ class PgDatabase:
     def __init__(self):
         self.extensions = []
         self.schemas = {}
+        self.types = {}
 
     @staticmethod
-    def load_from_db(conn, include_schemas):
+    def load_from_db(conn):
         database = PgDatabase()
 
-        query = (
-            "SELECT pg_namespace.oid "
-            "FROM pg_namespace "
-            "WHERE pg_namespace.nspname = ANY(%s)"
-        )
+        database.schemas = PgSchema.load_all_from_db(conn, database)
+        database.types = PgType.load_all_from_db(conn, database)
 
-        query_args = (include_schemas,)
+        for pg_type in database.types.values():
+            pg_type.schema.types.append(pg_type)
 
-        with closing(conn.cursor()) as cursor:
-            cursor.execute(query, query_args)
+        database.tables = PgTable.load_all_from_db(conn, database)
 
-            rows = cursor.fetchall()
+        for pg_table in database.tables.values():
+            pg_table.schema.tables.append(pg_table)
 
-        database.schemas = {
-            schema.name: schema
-            for schema in (PgSchema.load_from_db(conn, oid) for oid, in rows)
-        }
+        PgPrimaryKey.load_all_from_db(conn, database)
+
+        database.functions = PgFunction.load_all_from_db(conn, database)
+
+        for pg_function in database.functions.values():
+            pg_function.schema.functions.append(pg_function)
 
         return database
 
@@ -64,10 +66,15 @@ class PgDatabase:
         return database
 
     def to_json(self):
+        def filter_schema(schema):
+            ok = schema.name not in ['pg_catalog', 'information_schema', 'pg_toast', 'pg_temp_1', 'pg_toast_temp_1', 'public', 'dep_recurse']
+
+            return ok
+
         return OrderedDict(
             objects=list(itertools.chain(*(
                 schema.to_json()
-                for schema in self.schemas.values()
+                for schema in self.schemas.values() if filter_schema(schema)
             )))
         )
 
@@ -137,25 +144,23 @@ class PgSchema:
         self.functions = []
 
     @staticmethod
-    def load_from_db(conn, oid):
+    def load_all_from_db(conn, database):
         query = (
-            "SELECT pg_namespace.nspname "
+            "SELECT pg_namespace.oid, pg_namespace.nspname "
             "FROM pg_namespace "
-            "WHERE oid = %s"
         )
 
-        query_args = (oid,)
+        query_args = tuple()
 
         with closing(conn.cursor()) as cursor:
             cursor.execute(query, query_args)
 
-            name, = cursor.fetchone()
+            rows = cursor.fetchall()
 
-        schema = PgSchema(name)
-        schema.tables = PgSchema.load_tables(conn, schema, oid)
-        schema.functions = PgSchema.load_functions(conn, schema, oid)
-
-        return schema
+        return {
+            oid: PgSchema(name)
+            for oid, name in rows
+        }
 
     @staticmethod
     def load_tables(conn, schema, schema_oid):
@@ -239,49 +244,50 @@ class PgTable:
         return '"{}"."{}"'.format(self.schema.name, self.name)
 
     @staticmethod
-    def load_from_db(conn, schema, oid):
+    def load_all_from_db(conn, database):
         query = (
-            'SELECT nspname, relname '
+            'SELECT oid, relnamespace, relname '
             'FROM pg_class '
-            'JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace '
-            'WHERE pg_class.oid = %s'
+            'WHERE relkind = \'r\''
         )
-        query_args = (oid,)
-
-        with closing(conn.cursor()) as cursor:
-            cursor.execute(query, query_args)
-
-            schema_name, table_name = cursor.fetchone()
-
-        table = PgTable(
-            schema,
-            table_name,
-            PgTable.load_columns_from_db(conn, oid)
-        )
-
-        table.primary_key = PgPrimaryKey.load_from_db(conn, oid)
-        table.foreign_keys = PgForeignKey.load_from_db_for_table(conn, oid)
-
-        return table
-
-    @staticmethod
-    def load_columns_from_db(conn, table_oid):
-        query = (
-            'SELECT attrelid, attnum '
-            'FROM pg_attribute '
-            'WHERE attrelid = %s AND attnum > 0 AND not attisdropped'
-        )
-        query_args = (table_oid,)
+        query_args = tuple()
 
         with closing(conn.cursor()) as cursor:
             cursor.execute(query, query_args)
 
             rows = cursor.fetchall()
 
-        return [
-            PgColumn.load_from_db(conn, attrelid, attnum)
-            for attrelid, attnum in rows
-        ]
+        tables = {
+            oid: PgTable(database.schemas[namespace_oid], name, [])
+            for oid, namespace_oid, name in rows
+        }
+
+        query = (
+            'SELECT attrelid, attname, atttypid, pg_description.description '
+            'FROM pg_attribute '
+            'LEFT JOIN pg_description ON pg_description.objoid = pg_attribute.attrelid AND pg_description.objsubid = pg_attribute.attnum '
+            'WHERE attnum > 0'
+        )
+
+        query_args = tuple()
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query, query_args)
+
+            column_rows = cursor.fetchall()
+
+        sorted_column_rows = sorted(column_rows, key=itemgetter(0))
+
+        for key, group in itertools.groupby(sorted_column_rows, key=itemgetter(0)):
+            table = tables.get(key)
+
+            if table is not None:
+                table.columns = [
+                    PgColumn(column_name, database.types[column_type_oid])
+                    for table_oid, column_name, column_type_oid, column_description in group
+                ]
+
+        return tables
 
     @staticmethod
     def load(database, data):
@@ -346,45 +352,29 @@ class PgPrimaryKey:
         ])
 
     @staticmethod
-    def load_from_db(conn, table_oid):
+    def load_all_from_db(conn, database):
         query = (
-            'SELECT conname '
-            'FROM pg_constraint '
-            'WHERE contype = \'p\' AND conrelid = %s'
-        )
-
-        query_args = (table_oid,)
-
-        with closing(conn.cursor()) as cursor:
-            cursor.execute(query, query_args)
-
-            if cursor.rowcount > 0:
-                name, = cursor.fetchone()
-
-                return PgPrimaryKey(
-                    name,
-                    PgPrimaryKey.load_columns_from_db(conn, table_oid)
-                )
-            else:
-                return None
-
-    @staticmethod
-    def load_columns_from_db(conn, table_oid):
-        query = (
-            'SELECT attname '
+            'SELECT conrelid, conname, array_agg(attname) '
             'FROM pg_constraint '
             'JOIN pg_attribute ON pg_attribute.attrelid = conindid '
-            'WHERE contype = \'p\' AND conrelid = %s'
+            'WHERE contype = \'p\' '
+            'GROUP BY conrelid, conname'
         )
 
-        query_args = (table_oid,)
+        query_args = tuple()
 
         with closing(conn.cursor()) as cursor:
             cursor.execute(query, query_args)
 
-            return [
-                attname for attname, in cursor.fetchall()
-            ]
+            rows = cursor.fetchall()
+
+        for table_oid, name, column_names in rows:
+            table = database.tables[table_oid]
+
+            table.primary_key = PgPrimaryKey(
+                name,
+                column_names
+            )
 
     @staticmethod
     def load(data):
@@ -443,7 +433,7 @@ class PgColumn:
 
             attname, data_type, description = cursor.fetchone()
 
-        column = PgColumn(attname, PgDataType(data_type))
+        column = PgColumn(attname, PgType(data_type))
 
         if description is not None:
             column.description = PgDescription(description)
@@ -577,7 +567,7 @@ class PgFunction:
         attributes = [
             ('name', self.name),
             ('schema', self.schema.name),
-            ('return_type', self.return_type),
+            ('return_type', self.return_type.to_json()),
             ('language', self.language),
             ('arguments', [
                 argument.to_json()
@@ -596,62 +586,49 @@ class PgFunction:
         return OrderedDict(attributes)
 
     @staticmethod
-    def load_from_db(conn, schema, oid):
+    def load_all_from_db(conn, database):
         query = (
-            'SELECT proname, return_type.typname, pg_language.lanname, prosrc, description '
+            'SELECT pg_proc.oid, pronamespace, proname, prorettype, '
+            'proargtypes, proargnames, '
+            'pg_language.lanname, prosrc, description '
             'FROM pg_proc '
             'JOIN pg_language ON pg_language.oid = pg_proc.prolang '
-            'JOIN pg_type AS return_type ON return_type.oid = pg_proc.prorettype '
-            'LEFT JOIN pg_description ON pg_description.objoid = pg_proc.oid '
-            'WHERE pg_proc.oid = %s'
+            'LEFT JOIN pg_description ON pg_description.objoid = pg_proc.oid'
         )
 
-        query_args = (oid, )
+        query_args = tuple()
 
         with closing(conn.cursor()) as cursor:
             cursor.execute(query, query_args)
 
-            name, return_type, language, src, description = cursor.fetchone()
+            rows = cursor.fetchall()
 
-        arguments = PgFunction.load_args_from_db(conn, oid)
+        def function_from_row(row):
+            oid, namespace_oid, name, return_type_oid, arg_type_oids_str, arg_names, language, src, description = row
 
-        pg_function = PgFunction(schema, name, arguments, return_type)
-        pg_function.language = language
-        pg_function.src = PgSourceCode(src.strip())
+            if arg_type_oids_str:
+                arg_type_oids = list(map(int, arg_type_oids_str.split(' ')))
 
-        if description is not None:
-            pg_function.description = PgDescription(description)
-
-        return pg_function
-
-    @staticmethod
-    def load_args_from_db(conn, oid):
-        query = (
-            'select array_agg(pg_type.typname), array_agg(proc.proargname) '
-            'from ('
-            'select oid, unnest(proargtypes) as proargtype, unnest(proargnames) proargname '
-            'from pg_proc'
-            ') proc '
-            'join pg_type on pg_type.oid = proc.proargtype '
-            'where proc.oid = %s '
-            'group by proc.oid'
-        )
-
-        query_args = (oid, )
-
-        with closing(conn.cursor()) as cursor:
-            cursor.execute(query, query_args)
-
-            if cursor.rowcount:
-                arg_types, arg_names = cursor.fetchone()
-
-                return [
-                    PgArgument(arg_name, PgDataType(arg_type), None, None)
-                    for arg_name, arg_type
-                    in zip(arg_names, arg_types)
+                arguments = [
+                    PgArgument(name, database.types[type_oid], None, None)
+                    for type_oid, name in zip(arg_type_oids, arg_names or [])
                 ]
             else:
-                return []
+                arguments = []
+
+            pg_function = PgFunction(database.schemas[namespace_oid], name, arguments, database.types[return_type_oid])
+            pg_function.language = language
+            pg_function.src = PgSourceCode(src.strip())
+
+            if description is not None:
+                pg_function.description = PgDescription(description)
+
+            return pg_function
+
+        return {
+            row[0]: function_from_row(row)
+            for row in rows
+        }
 
 
 data_type_mapping = {
@@ -661,15 +638,65 @@ data_type_mapping = {
 }
 
 
-class PgDataType:
-    def __init__(self, name):
+class PgTypeRef:
+    def __init__(self, registry, ref):
+        self.registry = registry
+        self.ref = ref
+
+    def dereference(self):
+        return self.registry.get(self.ref)
+
+
+class PgType:
+    def __init__(self, schema, name):
+        self.schema = schema
         self.name = name
+        self.element_type = None
+
+    @staticmethod
+    def load_all_from_db(conn, database):
+        query = (
+            "SELECT oid, typname, typnamespace, typelem "
+            "FROM pg_type"
+        )
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query)
+
+            rows = cursor.fetchall()
+
+        pg_types = {}
+
+        for oid, name, namespace_oid, element_oid in rows:
+            pg_type = PgType(database.schemas[namespace_oid], name)
+
+            if element_oid != 0:
+                # Store a reference, because the targeted type may not be loaded yet
+                pg_type.element_type = PgTypeRef(pg_types, element_oid)
+
+            pg_types[oid] = pg_type
+
+        # Dereference all references
+        for pg_type in pg_types.values():
+            if pg_type.element_type is not None:
+                pg_type.element_type = pg_type.element_type.dereference()
+
+        return pg_types
 
     def to_json(self):
         return str(self)
 
     def __str__(self):
-        return data_type_mapping.get(self.name, self.name)
+        if self.element_type is not None:
+            return "{}[]".format(str(self.element_type))
+        else:
+            if self.name in data_type_mapping:
+                return data_type_mapping[self.name]
+            else:
+                if self.schema is None:
+                    return self.name
+                else:
+                    return '{}.{}'.format(self.schema.name, self.name)
 
 
 class PgSourceCode(str):
@@ -690,8 +717,8 @@ class PgArgument:
     @staticmethod
     def from_json(data):
         return PgArgument(
-            data['name'],
-            PgDataType(data['data_type']),
+            data.get('name'),
+            PgType(None, data['data_type']),
             data.get('mode'),
             data.get('default')
         )

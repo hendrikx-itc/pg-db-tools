@@ -1,6 +1,7 @@
 from itertools import chain
 
 from pg_db_tools import iter_join
+from pg_db_tools.graph import database_to_graph
 from pg_db_tools.pg_types import PgEnum
 
 
@@ -13,7 +14,7 @@ def render_function(pg_function):
         '    RETURNS {}'.format(pg_function.return_type),
         'AS $$',
         str(pg_function.src),
-        '$$ LANGUAGE {}'.format(pg_function.language)
+        '$$ LANGUAGE {};'.format(pg_function.language)
     ]
 
 
@@ -32,6 +33,8 @@ class SqlRenderer:
         self.if_not_exists = False
 
     def render(self, out_file, database):
+        graph = database_to_graph(database)
+
         rendered_chunks = self.render_chunks(database)
 
         out_file.writelines(rendered_chunks)

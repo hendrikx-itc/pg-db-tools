@@ -42,7 +42,7 @@ def from_db_command(args):
     Entry point for the from_db sub-command after parsing the arguments
     """
     with closing(psycopg2.connect('')) as conn:
-        database = PgDatabase.load_from_db(conn, args.schemas)
+        database = PgDatabase.load_from_db(conn)
 
     try:
         formatters[args.format](database.to_json())
@@ -63,7 +63,6 @@ def format_yaml(data):
     )
     yaml.SafeDumper.add_representer(PgSourceCode, source_code_representer)
     yaml.SafeDumper.add_representer(PgDescription, description_representer)
-
 
     yaml.safe_dump(data, sys.stdout, default_flow_style=False)
 
