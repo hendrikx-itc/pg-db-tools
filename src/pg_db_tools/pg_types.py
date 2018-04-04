@@ -19,6 +19,21 @@ class PgDatabase:
         self.extensions = []
         self.schemas = {}
         self.types = {}
+        self.objects = []
+        self.views = {}
+
+    @staticmethod
+    def load(data):
+        database = PgDatabase()
+
+        database.extensions = data.get('extensions', [])
+
+        database.objects = [
+            load_object(database, object_data)
+            for object_data in data['objects']
+        ]
+
+        return database
 
     @staticmethod
     def load_from_db(conn):
@@ -36,6 +51,11 @@ class PgDatabase:
             pg_table.schema.tables.append(pg_table)
 
         PgPrimaryKey.load_all_from_db(conn, database)
+
+        database.views = PgView.load_all_from_db(conn, database)
+
+        for pg_view in database.views.values():
+            pg_view.schema.views.append(pg_view)
 
         database.functions = PgFunction.load_all_from_db(conn, database)
 
@@ -108,7 +128,7 @@ def load(infile):
         for type_data in data.get('types', [])
     ]
 
-    objects = [
+    database.objects = [
         load_object(database, object_data)
         for object_data in data['objects']
     ]
@@ -125,23 +145,13 @@ def load_type(database, type_data):
         raise Exception('Unsupported type: {}'.format(type_type))
 
 
-def load_object(database, object_data):
-    object_type, object_data = next(iter(object_data.items()))
-
-    if object_type == 'table':
-        return PgTable.load(database, object_data)
-    elif object_type == 'function':
-        return PgFunction.load(database, object_data)
-    else:
-        raise Exception('Unsupported object type: {}'.format(object_type))
-
-
 class PgSchema:
     def __init__(self, name):
         self.name = name
         self.types = []
         self.tables = []
         self.functions = []
+        self.views = []
 
     @staticmethod
     def load_all_from_db(conn, database):
@@ -161,44 +171,6 @@ class PgSchema:
             oid: PgSchema(name)
             for oid, name in rows
         }
-
-    @staticmethod
-    def load_tables(conn, schema, schema_oid):
-        query = (
-            "SELECT pg_class.oid "
-            "FROM pg_class "
-            "WHERE relkind = %s AND pg_class.relnamespace = %s"
-        )
-
-        query_args = ('r', schema_oid)
-
-        with closing(conn.cursor()) as cursor:
-            cursor.execute(query, query_args)
-
-            rows = cursor.fetchall()
-
-        return [
-            PgTable.load_from_db(conn, schema, oid) for oid, in rows
-        ]
-
-    @staticmethod
-    def load_functions(conn, schema, schema_oid):
-        query = (
-            "SELECT oid "
-            "FROM pg_proc "
-            "WHERE pronamespace = %s"
-        )
-
-        query_args = (schema_oid,)
-
-        with closing(conn.cursor()) as cursor:
-            cursor.execute(query, query_args)
-
-            rows = cursor.fetchall()
-
-        return [
-            PgFunction.load_from_db(conn, schema, oid) for oid, in rows
-        ]
 
     def filter_objects(self, database_filter):
         """
@@ -225,6 +197,10 @@ class PgSchema:
             (
                 OrderedDict([('function', func.to_json())])
                 for func in self.functions
+            ),
+            (
+                OrderedDict([('view', view.to_json())])
+                for view in self.views
             )
         ))
 
@@ -417,29 +393,6 @@ class PgColumn:
 
         return column
 
-    @staticmethod
-    def load_from_db(conn, attrelid, attnum):
-        query = (
-            'SELECT attname, pg_type.typname, pg_description.description '
-            'FROM pg_attribute '
-            'JOIN pg_type ON pg_type.oid = pg_attribute.atttypid '
-            'LEFT JOIN pg_description ON pg_description.objoid = pg_attribute.attrelid AND pg_description.objsubid = pg_attribute.attnum '
-            'WHERE pg_attribute.attrelid = %s AND pg_attribute.attnum = %s'
-        )
-        query_args = (attrelid, attnum)
-
-        with closing(conn.cursor()) as cursor:
-            cursor.execute(query, query_args)
-
-            attname, data_type, description = cursor.fetchone()
-
-        column = PgColumn(attname, PgType(data_type))
-
-        if description is not None:
-            column.description = PgDescription(description)
-
-        return column
-
 
 class PgForeignKey:
     def __init__(self, name, columns, ref_table_name, ref_schema_name, ref_columns):
@@ -589,7 +542,7 @@ class PgFunction:
     def load_all_from_db(conn, database):
         query = (
             'SELECT pg_proc.oid, pronamespace, proname, prorettype, '
-            'proargtypes, proargnames, '
+            'proargtypes, proallargtypes, proargmodes, proargnames, '
             'pg_language.lanname, prosrc, description '
             'FROM pg_proc '
             'JOIN pg_language ON pg_language.oid = pg_proc.prolang '
@@ -604,17 +557,30 @@ class PgFunction:
             rows = cursor.fetchall()
 
         def function_from_row(row):
-            oid, namespace_oid, name, return_type_oid, arg_type_oids_str, arg_names, language, src, description = row
+            (
+                oid, namespace_oid, name, return_type_oid, arg_type_oids_str,
+                all_arg_type_oids, arg_modes, arg_names, language, src,
+                description
+            ) = row
 
             if arg_type_oids_str:
                 arg_type_oids = list(map(int, arg_type_oids_str.split(' ')))
-
-                arguments = [
-                    PgArgument(name, database.types[type_oid], None, None)
-                    for type_oid, name in zip(arg_type_oids, arg_names or [])
-                ]
             else:
-                arguments = []
+                arg_type_oids = []
+
+            if all_arg_type_oids is None:
+                all_arg_type_oids = arg_type_oids
+
+            if arg_modes is None:
+                arg_modes = len(arg_type_oids) * ['i']
+
+            if arg_names is None:
+                arg_names = len(all_arg_type_oids) * [None]
+
+            arguments = [
+                PgArgument(name, database.types[type_oid], arg_mode, None)
+                for type_oid, name, arg_mode in zip(all_arg_type_oids, arg_names, arg_modes)
+            ]
 
             pg_function = PgFunction(database.schemas[namespace_oid], name, arguments, database.types[return_type_oid])
             pg_function.language = language
@@ -632,6 +598,7 @@ class PgFunction:
 
 
 data_type_mapping = {
+    'name': 'name',
     'int2': 'smallint',
     'int4': 'integer',
     'int8': 'bigint'
@@ -687,11 +654,11 @@ class PgType:
         return str(self)
 
     def __str__(self):
-        if self.element_type is not None:
-            return "{}[]".format(str(self.element_type))
+        if self.schema is None or self.schema.name == 'pg_catalog':
+            return data_type_mapping.get(self.name, self.name)
         else:
-            if self.name in data_type_mapping:
-                return data_type_mapping[self.name]
+            if self.element_type is not None:
+                return "{}[]".format(str(self.element_type))
             else:
                 if self.schema is None:
                     return self.name
@@ -731,4 +698,66 @@ class PgArgument:
 
         attributes.append(('data_type', self.data_type.to_json()))
 
+        if self.mode is not None and self.mode != 'i':
+            attributes.append(('mode', self.mode))
+
+        if self.default is not None:
+            attributes.append(('default', self.default))
+
         return OrderedDict(attributes)
+
+
+class PgViewQuery(str):
+    pass
+
+
+class PgView:
+    def __init__(self, schema, name, view_query):
+        self.schema = schema
+        self.name = name
+        self.view_query = view_query
+
+    @staticmethod
+    def load_all_from_db(conn, database):
+        query = (
+            'SELECT oid, relnamespace, relname, pg_get_viewdef(oid) '
+            'FROM pg_class '
+            'WHERE relkind = \'v\''
+        )
+        query_args = tuple()
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query, query_args)
+
+            rows = cursor.fetchall()
+
+        views = {
+            oid: PgView(database.schemas[namespace_oid], name, PgViewQuery(view_def))
+            for oid, namespace_oid, name, view_def in rows
+        }
+
+        return views
+
+    def to_json(self):
+        attributes = [
+            ('name', self.name),
+            ('schema', self.schema.name),
+            ('query', self.view_query)
+        ]
+
+        return OrderedDict(attributes)
+
+
+object_loaders = {
+    'table': PgTable.load,
+    'function': PgFunction.load
+}
+
+
+def load_object(database, object_data):
+    object_type, object_data = next(iter(object_data.items()))
+
+    try:
+        return object_loaders[object_type](database, object_data)
+    except IndexError:
+        raise Exception('Unsupported object type: {}'.format(object_type))

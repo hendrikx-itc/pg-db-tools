@@ -2,10 +2,94 @@ from itertools import chain
 
 from pg_db_tools import iter_join
 from pg_db_tools.graph import database_to_graph
-from pg_db_tools.pg_types import PgEnum
+from pg_db_tools.pg_types import PgEnum, PgTable, PgFunction
 
 
-def render_function(pg_function):
+def render_table_sql(table):
+    options = []
+
+    yield (
+        'CREATE TABLE {options}{ident}\n'
+        '(\n'
+        '{columns_part}\n'
+        ');\n'
+    ).format(
+        options=''.join('{} '.format(option) for option in options),
+        ident='{}.{}'.format(
+            quote_ident(table.schema.name), quote_ident(table.name)
+        ),
+        columns_part=',\n'.join(table_defining_components(table))
+    )
+
+    if table.description:
+        yield (
+            'COMMENT ON TABLE {} IS {};\n'
+        ).format(
+            '{}.{}'.format(
+                quote_ident(table.schema), quote_ident(table.name)
+            ),
+            quote_string(escape_string(table.description))
+        )
+
+
+def table_defining_components(table):
+    for column_data in table.columns:
+        yield '  {}'.format(render_column_definition(column_data))
+
+    if table.primary_key:
+        yield '  PRIMARY KEY ({})'.format(', '.join(table.primary_key.columns))
+
+    if table.unique:
+        for unique_constraint in table.unique:
+            yield '  UNIQUE ({})'.format(
+                ', '.join(unique_constraint['columns'])
+            )
+
+    if table.check:
+        for check_constraint in table.check:
+            yield '  CHECK ({})'.format(check_constraint['expression'])
+
+    if table.exclude:
+        for exclude_constraint in table.exclude:
+            yield '  {}'.format(
+                render_exclude_constraint(exclude_constraint)
+            )
+
+
+def render_column_definition(column):
+    parts = [
+        quote_ident(column.name),
+        column.data_type
+    ]
+
+    if column.nullable is False:
+        parts.append('NOT NULL')
+
+    if column.default:
+        parts.append('DEFAULT {}'.format(column.default))
+
+    return ' '.join(parts)
+
+
+def render_exclude_constraint(exclude_data):
+    parts = ['EXCLUDE ']
+
+    if exclude_data.get('index_method'):
+        parts.append('USING {index_method} '.format(**exclude_data))
+
+    parts.append(
+        '({})'.format(
+            ', '.join(
+                '{exclude_element} WITH {operator}'.format(**e)
+                for e in exclude_data['exclusions']
+            )
+        )
+    )
+
+    return ''.join(parts)
+
+
+def render_function_sql(pg_function):
     return [
         'CREATE FUNCTION "{}"."{}"({})'.format(
             pg_function.schema.name, pg_function.name,
@@ -26,6 +110,12 @@ def render_argument(pg_argument):
             pg_argument.name,
             str(pg_argument.data_type)
         )
+
+
+sql_renderers = {
+    PgTable: render_table_sql,
+    PgFunction: render_function_sql
+}
 
 
 class SqlRenderer:
@@ -52,6 +142,10 @@ class SqlRenderer:
                 database.schemas.values(), key=lambda s: s.name):
             for sql in self.render_schema_sql(schema):
                 yield sql
+
+        for pg_object in database.objects:
+            yield '\n'
+            yield sql_renderers[type(pg_object)](pg_object)
 
         for schema in sorted(database.schemas.values(), key=lambda s: s.name):
             for table in schema.tables:
@@ -87,16 +181,6 @@ class SqlRenderer:
         # Assume the public schema already exists
         if schema.name != 'public':
             yield [self.create_schema_statement(schema)]
-
-        for type_data in schema.types:
-            yield self.render_type_sql(type_data)
-
-        for table in schema.tables:
-            yield self.render_table_sql(table)
-
-        for pg_function in schema.functions:
-            yield render_function(pg_function)
-            yield ['']
 
     def create_schema_statement(self, schema):
         options = []
@@ -138,89 +222,6 @@ class SqlRenderer:
                 values=', '.join(map(quote_string, enum.values))
             )
         ]
-
-    def render_table_sql(self, table):
-        options = []
-
-        if self.if_not_exists:
-            options.append('IF NOT EXISTS')
-
-        yield (
-            'CREATE TABLE {options}{ident}\n'
-            '(\n'
-            '{columns_part}\n'
-            ');\n'
-        ).format(
-            options=''.join('{} '.format(option) for option in options),
-            ident='{}.{}'.format(
-                quote_ident(table.schema.name), quote_ident(table.name)
-            ),
-            columns_part=',\n'.join(self.table_defining_components(table))
-        )
-
-        if table.description:
-            yield (
-                'COMMENT ON TABLE {} IS {};\n'
-            ).format(
-                '{}.{}'.format(
-                    quote_ident(table.schema), quote_ident(table.name)
-                ),
-                quote_string(escape_string(table.description))
-            )
-
-    def table_defining_components(self, table):
-        for column_data in table.columns:
-            yield '  {}'.format(self.render_column_definition(column_data))
-
-        if table.primary_key:
-            yield '  PRIMARY KEY ({})'.format(', '.join(table.primary_key.columns))
-
-        if table.unique:
-            for unique_constraint in table.unique:
-                yield '  UNIQUE ({})'.format(
-                    ', '.join(unique_constraint['columns'])
-                )
-
-        if table.check:
-            for check_constraint in table.check:
-                yield '  CHECK ({})'.format(check_constraint['expression'])
-
-        if table.exclude:
-            for exclude_constraint in table.exclude:
-                yield '  {}'.format(
-                    self.render_exclude_constraint(exclude_constraint)
-                )
-
-    def render_column_definition(self, column):
-        parts = [
-            quote_ident(column.name),
-            column.data_type
-        ]
-
-        if column.nullable is False:
-            parts.append('NOT NULL')
-
-        if column.default:
-            parts.append('DEFAULT {}'.format(column.default))
-
-        return ' '.join(parts)
-
-    def render_exclude_constraint(self, exclude_data):
-        parts = ['EXCLUDE ']
-
-        if exclude_data.get('index_method'):
-            parts.append('USING {index_method} '.format(**exclude_data))
-
-        parts.append(
-            '({})'.format(
-                ', '.join(
-                    '{exclude_element} WITH {operator}'.format(**e)
-                    for e in exclude_data['exclusions']
-                )
-            )
-        )
-
-        return ''.join(parts)
 
 
 def quote_ident(ident):
