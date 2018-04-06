@@ -2,7 +2,7 @@ from itertools import chain
 
 from pg_db_tools import iter_join
 from pg_db_tools.graph import database_to_graph
-from pg_db_tools.pg_types import PgEnum, PgTable, PgFunction, PgView
+from pg_db_tools.pg_types import PgEnumType, PgTable, PgFunction, PgView, PgCompositeType
 
 
 def render_table_sql(table):
@@ -71,6 +71,10 @@ def render_column_definition(column):
     return ' '.join(parts)
 
 
+def render_composite_type_column_definition(column):
+    return '{} {}'.format(quote_ident(column.name), column.data_type)
+
+
 def render_exclude_constraint(exclude_data):
     parts = ['EXCLUDE ']
 
@@ -109,12 +113,34 @@ def render_view_sql(pg_view):
     ]
 
 
+def render_composite_type_sql(pg_composite_type):
+    yield (
+        'CREATE TYPE {ident} AS (\n'
+        '{columns_part}\n'
+        ');\n'
+    ).format(
+        ident='{}.{}'.format(quote_ident(pg_composite_type.schema.name), quote_ident(pg_composite_type.name)),
+        columns_part=',\n'.join('  {}'.format(render_composite_type_column_definition(column_data)) for column_data in pg_composite_type.columns)
+    )
+
+
+def render_enum_type_sql(pg_enum_type):
+    yield (
+        'CREATE TYPE {ident} AS ENUM (\n'
+        '{labels_part}\n'
+        ');\n'
+    ).format(
+        ident='{}.{}'.format(quote_ident(pg_enum_type.schema.name), quote_ident(pg_enum_type.name)),
+        labels_part=',\n'.join('  {}'.format(quote_string(label)) for label in pg_enum_type.labels)
+    )
+
+
 def render_argument(pg_argument):
     if pg_argument.name is None:
         return str(pg_argument.data_type)
     else:
         return '{} {}'.format(
-            pg_argument.name,
+            quote_ident(pg_argument.name),
             str(pg_argument.data_type)
         )
 
@@ -122,7 +148,9 @@ def render_argument(pg_argument):
 sql_renderers = {
     PgTable: render_table_sql,
     PgFunction: render_function_sql,
-    PgView: render_view_sql
+    PgView: render_view_sql,
+    PgCompositeType: render_composite_type_sql,
+    PgEnumType: render_enum_type_sql
 }
 
 
@@ -212,24 +240,6 @@ class SqlRenderer:
                 options=''.join('{} '.format(option) for option in options),
                 extension_name=extension_name
             )
-
-    def render_type_sql(self, data):
-        type_type = type(data)
-
-        if type_type is PgEnum:
-            return self.render_enum_sql(data)
-        else:
-            raise Exception('Unsupported type: {}'.format(type_type))
-
-    def render_enum_sql(self, enum):
-        return [
-            'CREATE TYPE {ident} AS ENUM ({values});\n'.format(
-                ident='{}.{}'.format(
-                    quote_ident(enum.schema.name), quote_ident(enum.name)
-                ),
-                values=', '.join(map(quote_string, enum.values))
-            )
-        ]
 
 
 def quote_ident(ident):

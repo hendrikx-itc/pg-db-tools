@@ -45,6 +45,16 @@ class PgDatabase:
         for pg_type in database.types.values():
             pg_type.schema.types.append(pg_type)
 
+        database.enum_types = PgEnumType.load_all_from_db(conn, database)
+
+        for pg_enum_type in database.enum_types.values():
+            pg_enum_type.schema.enum_types.append(pg_enum_type)
+
+        database.composity_types = PgCompositeType.load_all_from_db(conn, database)
+
+        for pg_composite_type in database.composity_types.values():
+            pg_composite_type.schema.composite_types.append(pg_composite_type)
+
         database.tables = PgTable.load_all_from_db(conn, database)
 
         for pg_table in database.tables.values():
@@ -94,7 +104,7 @@ class PgDatabase:
 
     def to_json(self):
         def filter_schema(schema):
-            ok = schema.name not in ['pg_catalog', 'information_schema', 'pg_toast', 'pg_temp_1', 'pg_toast_temp_1', 'public', 'dep_recurse']
+            ok = schema.name not in ['pg_catalog', 'information_schema', 'pg_toast', 'pg_temp_1', 'pg_toast_temp_1', 'dep_recurse']
 
             return ok
 
@@ -156,6 +166,8 @@ class PgSchema:
     def __init__(self, name):
         self.name = name
         self.types = []
+        self.enum_types = []
+        self.composite_types = []
         self.tables = []
         self.functions = []
         self.views = []
@@ -198,6 +210,14 @@ class PgSchema:
 
     def to_json(self):
         return list(itertools.chain(
+            (
+                OrderedDict([('enum_type', enum_type.to_json())])
+                for enum_type in self.enum_types
+            ),
+            (
+                OrderedDict([('composite_type', composite_type.to_json())])
+                for composite_type in self.composite_types
+            ),
             (
                 OrderedDict([('table', table.to_json())])
                 for table in self.tables
@@ -467,25 +487,45 @@ class PgForeignKey:
         )
 
 
-class PgEnum:
-    def __init__(self, schema, name, values):
+class PgEnumType:
+    def __init__(self, schema, name, labels):
         self.schema = schema
         self.name = name
-        self.values = values
+        self.labels = labels
 
     @staticmethod
     def load(database, data):
         schema = database.register_schema(data['schema'])
 
-        enum = PgEnum(
-            schema,
-            data['name'],
-            data['values']
+        return PgEnumType(schema, data['name'], data['labels'])
+
+    def to_json(self):
+        return OrderedDict([
+            ('schema', self.schema.name),
+            ('name', self.name),
+            ('labels', self.labels)
+        ])
+
+    @staticmethod
+    def load_all_from_db(conn, database):
+        query = (
+            'SELECT pg_type.oid, pg_type.typnamespace, pg_type.typname, array_agg(enumlabel) '
+            'FROM pg_type '
+            'JOIN pg_enum ON pg_type.oid = pg_enum.enumtypid '
+            'WHERE typtype = \'e\''
+            'GROUP BY pg_type.oid, pg_type.typnamespace, pg_type.typname'
         )
+        query_args = tuple()
 
-        schema.types.append(enum)
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query, query_args)
 
-        return enum
+            rows = cursor.fetchall()
+
+        return {
+            oid: PgEnumType(database.schemas[namespace_oid], name, labels)
+            for oid, namespace_oid, name, labels in rows
+        }
 
 
 class PgFunction:
@@ -667,6 +707,87 @@ class PgType:
                     return '{}.{}'.format(self.schema.name, self.name)
 
 
+class PgCompositeType:
+    def __init__(self, schema, name, columns):
+        self.schema = schema
+        self.name = name
+        self.columns = columns
+
+    @staticmethod
+    def load(database, data):
+        schema = database.register_schema(data.get('schema', DEFAULT_SCHEMA))
+
+        composite_type = PgCompositeType(
+            schema,
+            data['name'],
+            [
+                PgColumn.load(column_data)
+                for column_data in data['columns']
+            ]
+        )
+
+        schema.composite_types.append(composite_type)
+
+        return composite_type
+
+    def to_json(self):
+        attributes = [
+            ('name', self.name),
+            ('schema', self.schema.name),
+            ('columns', [column.to_json() for column in self.columns])
+        ]
+
+        return OrderedDict(attributes)
+
+    @staticmethod
+    def load_all_from_db(conn, database):
+        query = (
+            'SELECT pg_type.typrelid, pg_type.typnamespace, pg_type.typname '
+            'FROM pg_type '
+            'JOIN pg_class ON pg_type.typrelid = pg_class.oid '
+            'WHERE relkind = \'c\''
+        )
+        query_args = tuple()
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query, query_args)
+
+            rows = cursor.fetchall()
+
+        composite_types = {
+            rel_oid: PgCompositeType(database.schemas[namespace_oid], name, [])
+            for rel_oid, namespace_oid, name in rows
+        }
+
+        query = (
+            'SELECT attrelid, attname, atttypid, pg_description.description '
+            'FROM pg_attribute '
+            'JOIN pg_class ON pg_class.oid = pg_attribute.attrelid '
+            'LEFT JOIN pg_description ON pg_description.objoid = pg_attribute.attrelid AND pg_description.objsubid = pg_attribute.attnum '
+            'WHERE pg_class.relkind = \'c\' AND attnum > 0'
+        )
+
+        query_args = tuple()
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query, query_args)
+
+            column_rows = cursor.fetchall()
+
+        sorted_column_rows = sorted(column_rows, key=itemgetter(0))
+
+        for key, group in itertools.groupby(sorted_column_rows, key=itemgetter(0)):
+            table = composite_types.get(key)
+
+            if table is not None:
+                table.columns = [
+                    PgColumn(column_name, database.types[column_type_oid])
+                    for table_oid, column_name, column_type_oid, column_description in group
+                ]
+
+        return composite_types
+
+
 class PgSourceCode(str):
     pass
 
@@ -801,7 +922,9 @@ class PgDepend:
 object_loaders = {
     'table': PgTable.load,
     'function': PgFunction.load,
-    'view': PgView.load
+    'view': PgView.load,
+    'composite_type': PgCompositeType.load,
+    'enum_type': PgEnumType.load
 }
 
 

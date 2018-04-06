@@ -1,7 +1,6 @@
 from functools import reduce
 
 from pg_db_tools import iter_join
-from pg_db_tools.pg_types import PgEnum
 
 
 class RstRenderer:
