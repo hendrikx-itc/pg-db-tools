@@ -241,8 +241,9 @@ class PgTable:
     @staticmethod
     def load_all_from_db(conn, database):
         query = (
-            'SELECT oid, relnamespace, relname '
+            'SELECT pg_class.oid, relnamespace, relname, description '
             'FROM pg_class '
+            'LEFT JOIN pg_description ON pg_description.objoid = pg_class.oid '
             'WHERE relkind = \'r\''
         )
         query_args = tuple()
@@ -252,9 +253,19 @@ class PgTable:
 
             rows = cursor.fetchall()
 
+        def table_from_row(row):
+            oid, namespace_oid, name, description = row
+
+            pg_table = PgTable(database.schemas[namespace_oid], name, [])
+
+            if description is not None:
+                pg_table.description = PgDescription(description)
+
+            return pg_table
+
         tables = {
-            oid: PgTable(database.schemas[namespace_oid], name, [])
-            for oid, namespace_oid, name in rows
+            row[0]: table_from_row(row)
+            for row in rows
         }
 
         query = (
@@ -322,9 +333,15 @@ class PgTable:
     def to_json(self):
         attributes = [
             ('name', self.name),
-            ('schema', self.schema.name),
-            ('columns', [column.to_json() for column in self.columns])
+            ('schema', self.schema.name)
         ]
+
+        if self.description is not None:
+            attributes.append(('description', self.description))
+
+        attributes.append(
+            ('columns', [column.to_json() for column in self.columns])
+        )
 
         if self.primary_key is not None:
             attributes.append(('primary_key', self.primary_key.to_json()))
