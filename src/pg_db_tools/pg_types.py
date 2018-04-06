@@ -19,6 +19,8 @@ class PgDatabase:
         self.extensions = []
         self.schemas = {}
         self.types = {}
+        self.tables = {}
+        self.composite_types = {}
         self.objects = []
         self.views = {}
 
@@ -39,7 +41,7 @@ class PgDatabase:
     def load_from_db(conn):
         database = PgDatabase()
 
-        database.schemas = PgSchema.load_all_from_db(conn, database)
+        database.schemas = PgSchema.load_all_from_db(conn)
         database.types = PgType.load_all_from_db(conn, database)
 
         for pg_type in database.types.values():
@@ -50,9 +52,11 @@ class PgDatabase:
         for pg_enum_type in database.enum_types.values():
             pg_enum_type.schema.enum_types.append(pg_enum_type)
 
-        database.composity_types = PgCompositeType.load_all_from_db(conn, database)
+        database.composite_types = PgCompositeType.load_all_from_db(
+            conn, database
+        )
 
-        for pg_composite_type in database.composity_types.values():
+        for pg_composite_type in database.composite_types.values():
             pg_composite_type.schema.composite_types.append(pg_composite_type)
 
         database.tables = PgTable.load_all_from_db(conn, database)
@@ -104,9 +108,10 @@ class PgDatabase:
 
     def to_json(self):
         def filter_schema(schema):
-            ok = schema.name not in ['pg_catalog', 'information_schema', 'pg_toast', 'pg_temp_1', 'pg_toast_temp_1', 'dep_recurse']
-
-            return ok
+            return schema.name not in [
+                'pg_catalog', 'information_schema', 'pg_toast', 'pg_temp_1',
+                'pg_toast_temp_1', 'dep_recurse'
+            ]
 
         return OrderedDict(
             objects=list(itertools.chain(*(
@@ -140,26 +145,12 @@ def load(infile):
 
     database.extensions = data.get('extensions', [])
 
-    types = [
-        load_type(database, type_data)
-        for type_data in data.get('types', [])
-    ]
-
     database.objects = [
         load_object(database, object_data)
         for object_data in data['objects']
     ]
 
     return database
-
-
-def load_type(database, type_data):
-    type_type, object_data = next(iter(type_data.items()))
-
-    if type_type == 'enum':
-        return PgEnum.load(database, object_data)
-    else:
-        raise Exception('Unsupported type: {}'.format(type_type))
 
 
 class PgSchema:
@@ -174,7 +165,7 @@ class PgSchema:
         self.foreign_keys = []
 
     @staticmethod
-    def load_all_from_db(conn, database):
+    def load_all_from_db(conn):
         query = (
             "SELECT pg_namespace.oid, pg_namespace.nspname "
             "FROM pg_namespace "
@@ -269,7 +260,9 @@ class PgTable:
         query = (
             'SELECT attrelid, attname, atttypid, pg_description.description '
             'FROM pg_attribute '
-            'LEFT JOIN pg_description ON pg_description.objoid = pg_attribute.attrelid AND pg_description.objsubid = pg_attribute.attnum '
+            'LEFT JOIN pg_description '
+            'ON pg_description.objoid = pg_attribute.attrelid '
+            'AND pg_description.objsubid = pg_attribute.attnum '
             'WHERE attnum > 0'
         )
 
@@ -337,9 +330,10 @@ class PgTable:
             attributes.append(('primary_key', self.primary_key.to_json()))
 
         if len(self.foreign_keys) > 0:
-            attributes.append(
-                ('foreign_keys', [foreign_key.to_json() for foreign_key in self.foreign_keys])
-            )
+            attributes.append((
+                'foreign_keys',
+                [foreign_key.to_json() for foreign_key in self.foreign_keys]
+            ))
 
         return OrderedDict(attributes)
 
@@ -446,12 +440,18 @@ class PgForeignKey:
     @staticmethod
     def load_all_from_db(conn, database):
         query = (
-            'SELECT pg_constraint.oid, connamespace, conname, conrelid, array_agg(col.attname), confrelid,  array_agg(refcol.attname) '
+            'SELECT pg_constraint.oid, connamespace, conname, conrelid, '
+            'array_agg(col.attname), confrelid,  array_agg(refcol.attname) '
             'FROM pg_constraint '
-            'JOIN pg_attribute col ON col.attrelid = pg_constraint.conrelid AND col.attnum = ANY(conkey) '
-            'JOIN pg_attribute refcol ON refcol.attrelid = pg_constraint.confrelid AND refcol.attnum = ANY(confkey) '
+            'JOIN pg_attribute col '
+            'ON col.attrelid = pg_constraint.conrelid '
+            'AND col.attnum = ANY(conkey) '
+            'JOIN pg_attribute refcol '
+            'ON refcol.attrelid = pg_constraint.confrelid '
+            'AND refcol.attnum = ANY(confkey) '
             'WHERE contype = \'f\' '
-            'GROUP BY pg_constraint.oid, connamespace, conname, conrelid, confrelid'
+            'GROUP BY pg_constraint.oid, connamespace, conname, conrelid, '
+            'confrelid'
         )
 
         with closing(conn.cursor()) as cursor:
@@ -509,7 +509,8 @@ class PgEnumType:
     @staticmethod
     def load_all_from_db(conn, database):
         query = (
-            'SELECT pg_type.oid, pg_type.typnamespace, pg_type.typname, array_agg(enumlabel) '
+            'SELECT pg_type.oid, pg_type.typnamespace, pg_type.typname, '
+            'array_agg(enumlabel) '
             'FROM pg_type '
             'JOIN pg_enum ON pg_type.oid = pg_enum.enumtypid '
             'WHERE typtype = \'e\''
@@ -623,7 +624,10 @@ class PgFunction:
                 for type_oid, name, arg_mode in zip(all_arg_type_oids, arg_names, arg_modes)
             ]
 
-            pg_function = PgFunction(database.schemas[namespace_oid], name, arguments, database.types[return_type_oid])
+            pg_function = PgFunction(
+                database.schemas[namespace_oid], name, arguments,
+                database.types[return_type_oid]
+            )
             pg_function.language = language
             pg_function.src = PgSourceCode(src.strip())
 
@@ -679,7 +683,8 @@ class PgType:
             pg_type = PgType(database.schemas[namespace_oid], name)
 
             if element_oid != 0:
-                # Store a reference, because the targeted type may not be loaded yet
+                # Store a reference, because the targeted type may not be
+                # loaded yet
                 pg_type.element_type = PgTypeRef(pg_types, element_oid)
 
             pg_types[oid] = pg_type
@@ -763,7 +768,9 @@ class PgCompositeType:
             'SELECT attrelid, attname, atttypid, pg_description.description '
             'FROM pg_attribute '
             'JOIN pg_class ON pg_class.oid = pg_attribute.attrelid '
-            'LEFT JOIN pg_description ON pg_description.objoid = pg_attribute.attrelid AND pg_description.objsubid = pg_attribute.attnum '
+            'LEFT JOIN pg_description '
+            'ON pg_description.objoid = pg_attribute.attrelid '
+            'AND pg_description.objsubid = pg_attribute.attnum '
             'WHERE pg_class.relkind = \'c\' AND attnum > 0'
         )
 
@@ -868,7 +875,9 @@ class PgView:
             rows = cursor.fetchall()
 
         views = {
-            oid: PgView(database.schemas[namespace_oid], name, PgViewQuery(view_def))
+            oid: PgView(
+                database.schemas[namespace_oid], name, PgViewQuery(view_def)
+            )
             for oid, namespace_oid, name, view_def in rows
         }
 
@@ -892,7 +901,8 @@ class PgDepend:
     @staticmethod
     def load_all_from_db(conn, database):
         query = (
-            "SELECT classid, objid, objsubid, refclassid, refobjid, refobjsubid, deptype "
+            "SELECT classid, objid, objsubid, refclassid, refobjid, "
+            "refobjsubid, deptype "
             "FROM pg_depend"
         )
 
@@ -909,7 +919,10 @@ class PgDepend:
                 return database.types[objid]
 
         def row_to_pg_depend(row):
-            classid, objid, objsubid, refclassid, refobjid, refobjsubid, deptype = row
+            (
+                classid, objid, objsubid, refclassid, refobjid, refobjsubid,
+                deptype
+            ) = row
 
             dependent_obj = get_object(classid, objid, objsubid)
             referenced_obj = get_object(refclassid, refobjid, refobjsubid)
