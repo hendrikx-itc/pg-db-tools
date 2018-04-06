@@ -62,6 +62,13 @@ class PgDatabase:
         for pg_function in database.functions.values():
             pg_function.schema.functions.append(pg_function)
 
+        database.foreign_keys = PgForeignKey.load_all_from_db(conn, database)
+
+        for pg_foreign_key in database.foreign_keys.values():
+            pg_foreign_key.schema.foreign_keys.append(pg_foreign_key)
+
+        database.dependencies = PgDepend.load_all_from_db(conn, database)
+
         return database
 
     def register_schema(self, name):
@@ -152,6 +159,7 @@ class PgSchema:
         self.tables = []
         self.functions = []
         self.views = []
+        self.foreign_keys = []
 
     @staticmethod
     def load_all_from_db(conn, database):
@@ -395,11 +403,11 @@ class PgColumn:
 
 
 class PgForeignKey:
-    def __init__(self, name, columns, ref_table_name, ref_schema_name, ref_columns):
+    def __init__(self, schema, name, columns, ref_table, ref_columns):
+        self.schema = schema
         self.name = name
         self.columns = columns
-        self.ref_table_name = ref_table_name
-        self.ref_schema_name = ref_schema_name
+        self.ref_table = ref_table
         self.ref_columns = ref_columns
 
     def to_json(self):
@@ -408,52 +416,45 @@ class PgForeignKey:
             ('columns', self.columns),
             ('references', OrderedDict([
                 ('table', OrderedDict([
-                    ('name', self.ref_table_name),
-                    ('schema', self.ref_schema_name)
+                    ('name', self.ref_table.name),
+                    ('schema', self.ref_table.schema.name)
                 ])),
                 ('columns', self.ref_columns)
             ]))
         ])
 
     @staticmethod
-    def load_from_db_for_table(conn, table_oid):
+    def load_all_from_db(conn, database):
         query = (
-            'SELECT oid '
+            'SELECT pg_constraint.oid, connamespace, conname, conrelid, array_agg(col.attname), confrelid,  array_agg(refcol.attname) '
             'FROM pg_constraint '
-            'WHERE contype = \'f\' AND conrelid = %s'
-        )
-
-        query_args = (table_oid,)
-
-        with closing(conn.cursor()) as cursor:
-            cursor.execute(query, query_args)
-
-            return [
-                PgForeignKey.load_from_db(conn, foreign_key_oid)
-                for foreign_key_oid, in cursor.fetchall()
-            ]
-
-    @staticmethod
-    def load_from_db(conn, oid):
-        query = (
-            'SELECT conname, array_agg(col.attname), pg_class.relname, pg_namespace.nspname, array_agg(refcol.attname) '
-            'FROM pg_constraint '
-            'JOIN pg_class ON pg_class.oid = confrelid '
-            'JOIN pg_namespace ON pg_class.relnamespace = pg_namespace.oid '
             'JOIN pg_attribute col ON col.attrelid = pg_constraint.conrelid AND col.attnum = ANY(conkey) '
             'JOIN pg_attribute refcol ON refcol.attrelid = pg_constraint.confrelid AND refcol.attnum = ANY(confkey) '
-            'WHERE contype = \'f\' AND pg_constraint.oid = %s '
-            'GROUP BY conname, pg_class.relname, pg_namespace.nspname'
+            'WHERE contype = \'f\' '
+            'GROUP BY pg_constraint.oid, connamespace, conname, conrelid, confrelid'
         )
 
-        query_args = (oid,)
-
         with closing(conn.cursor()) as cursor:
-            cursor.execute(query, query_args)
+            cursor.execute(query)
 
-            name, columns, ref_table_name, ref_schema_name, ref_columns = cursor.fetchone()
+            rows = cursor.fetchall()
 
-        return PgForeignKey(name, columns, ref_table_name, ref_schema_name, ref_columns)
+        def row_to_foreign_key(row):
+            oid, namespace_oid, name, table_oid, columns, ref_table_oid, ref_columns = row
+
+            namespace = database.schemas[namespace_oid]
+
+            table = database.tables[table_oid]
+
+            ref_table = database.tables[ref_table_oid]
+
+            pg_foreign_key = PgForeignKey(namespace, name, columns, ref_table, ref_columns)
+
+            table.foreign_keys.append(pg_foreign_key)
+
+            return oid, pg_foreign_key
+
+        return dict(row_to_foreign_key(row) for row in rows)
 
     @staticmethod
     def load(data):
@@ -718,6 +719,20 @@ class PgView:
         self.view_query = view_query
 
     @staticmethod
+    def load(database, data):
+        schema = database.register_schema(data['schema'])
+
+        pg_view = PgView(
+            schema,
+            data['name'],
+            PgViewQuery(data['query'])
+        )
+
+        schema.views.append(pg_view)
+
+        return pg_view
+
+    @staticmethod
     def load_all_from_db(conn, database):
         query = (
             'SELECT oid, relnamespace, relname, pg_get_viewdef(oid) '
@@ -748,9 +763,45 @@ class PgView:
         return OrderedDict(attributes)
 
 
+class PgDepend:
+    def __init__(self, dependent_obj, referenced_obj):
+        self.dependent_obj = dependent_obj
+        self.referenced_obj = referenced_obj
+
+    @staticmethod
+    def load_all_from_db(conn, database):
+        query = (
+            "SELECT classid, objid, objsubid, refclassid, refobjid, refobjsubid, deptype "
+            "FROM pg_depend"
+        )
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query)
+
+            rows = cursor.fetchall()
+
+        def get_object(classid, objid, objsubid):
+            if classid == 0:
+                return None
+
+            if database.tables[classid].name == 'pg_type':
+                return database.types[objid]
+
+        def row_to_pg_depend(row):
+            classid, objid, objsubid, refclassid, refobjid, refobjsubid, deptype = row
+
+            dependent_obj = get_object(classid, objid, objsubid)
+            referenced_obj = get_object(refclassid, refobjid, refobjsubid)
+
+            return PgDepend(dependent_obj, referenced_obj)
+
+        return [row_to_pg_depend(row) for row in rows]
+
+
 object_loaders = {
     'table': PgTable.load,
-    'function': PgFunction.load
+    'function': PgFunction.load,
+    'view': PgView.load
 }
 
 

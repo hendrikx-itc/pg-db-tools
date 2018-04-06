@@ -2,7 +2,7 @@ from itertools import chain
 
 from pg_db_tools import iter_join
 from pg_db_tools.graph import database_to_graph
-from pg_db_tools.pg_types import PgEnum, PgTable, PgFunction
+from pg_db_tools.pg_types import PgEnum, PgTable, PgFunction, PgView
 
 
 def render_table_sql(table):
@@ -102,6 +102,13 @@ def render_function_sql(pg_function):
     ]
 
 
+def render_view_sql(pg_view):
+    return [
+        'CREATE VIEW "{}"."{}" AS'.format(pg_view.schema.name, pg_view.name),
+        pg_view.view_query
+    ]
+
+
 def render_argument(pg_argument):
     if pg_argument.name is None:
         return str(pg_argument.data_type)
@@ -114,7 +121,8 @@ def render_argument(pg_argument):
 
 sql_renderers = {
     PgTable: render_table_sql,
-    PgFunction: render_function_sql
+    PgFunction: render_function_sql,
+    PgView: render_view_sql
 }
 
 
