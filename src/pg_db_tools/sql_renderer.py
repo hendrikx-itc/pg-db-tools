@@ -2,7 +2,8 @@ from itertools import chain
 
 from pg_db_tools import iter_join
 from pg_db_tools.graph import database_to_graph
-from pg_db_tools.pg_types import PgEnumType, PgTable, PgFunction, PgView, PgCompositeType
+from pg_db_tools.pg_types import PgEnumType, PgTable, PgFunction, PgView, \
+    PgCompositeType, PgAggregate
 
 
 def render_table_sql(table):
@@ -26,7 +27,7 @@ def render_table_sql(table):
             'COMMENT ON TABLE {} IS {};\n'
         ).format(
             '{}.{}'.format(
-                quote_ident(table.schema), quote_ident(table.name)
+                quote_ident(table.schema.name), quote_ident(table.name)
             ),
             quote_string(escape_string(table.description))
         )
@@ -94,12 +95,19 @@ def render_exclude_constraint(exclude_data):
 
 
 def render_function_sql(pg_function):
+    returns_part = '    RETURNS '
+
+    if pg_function.returns_set:
+        returns_part += 'SETOF '
+
+    returns_part += pg_function.return_type
+
     return [
         'CREATE FUNCTION "{}"."{}"({})'.format(
             pg_function.schema.name, pg_function.name,
             ', '.join(render_argument(argument) for argument in pg_function.arguments)
         ),
-        '    RETURNS {}'.format(pg_function.return_type),
+        returns_part,
         'AS $$',
         str(pg_function.src),
         '$$ LANGUAGE {};'.format(pg_function.language)
@@ -135,13 +143,30 @@ def render_enum_type_sql(pg_enum_type):
     )
 
 
+def render_aggregate_sql(pg_aggregate):
+    properties = [
+        '    SFUNC = {}'.format(pg_aggregate.sfunc.ident()),
+        '    STYPE = {}'.format(pg_aggregate.stype.ident())
+    ]
+
+    yield (
+        'CREATE AGGREGATE {ident} ({arguments}) (\n'
+        '{properties}\n'
+        ');\n'
+    ).format(
+        ident=pg_aggregate.ident(),
+        arguments=', '.join(render_argument(argument) for argument in pg_aggregate.arguments),
+        properties=',\n'.join(properties)
+    )
+
+
 def render_argument(pg_argument):
     if pg_argument.name is None:
-        return str(pg_argument.data_type)
+        return str(pg_argument.data_type.ident())
     else:
         return '{} {}'.format(
             quote_ident(pg_argument.name),
-            str(pg_argument.data_type)
+            str(pg_argument.data_type.ident())
         )
 
 
@@ -150,7 +175,8 @@ sql_renderers = {
     PgFunction: render_function_sql,
     PgView: render_view_sql,
     PgCompositeType: render_composite_type_sql,
-    PgEnumType: render_enum_type_sql
+    PgEnumType: render_enum_type_sql,
+    PgAggregate: render_aggregate_sql
 }
 
 

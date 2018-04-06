@@ -21,6 +21,7 @@ class PgDatabase:
         self.types = {}
         self.tables = {}
         self.composite_types = {}
+        self.function = {}
         self.objects = []
         self.views = {}
 
@@ -75,6 +76,11 @@ class PgDatabase:
 
         for pg_function in database.functions.values():
             pg_function.schema.functions.append(pg_function)
+
+        database.aggregates = PgAggregate.load_all_from_db(conn, database)
+
+        for pg_aggregate in database.aggregates.values():
+            pg_aggregate.schema.aggregates.append(pg_aggregate)
 
         database.foreign_keys = PgForeignKey.load_all_from_db(conn, database)
 
@@ -163,6 +169,7 @@ class PgSchema:
         self.functions = []
         self.views = []
         self.foreign_keys = []
+        self.aggregates = []
 
     @staticmethod
     def load_all_from_db(conn):
@@ -216,6 +223,10 @@ class PgSchema:
             (
                 OrderedDict([('function', func.to_json())])
                 for func in self.functions
+            ),
+            (
+                OrderedDict([('aggregate', aggregate.to_json())])
+                for aggregate in self.aggregates
             ),
             (
                 OrderedDict([('view', view.to_json())])
@@ -309,6 +320,11 @@ class PgTable:
                 for column_data in data['columns']
             ]
         )
+
+        description = data.get('description')
+
+        if description is not None:
+            table.description = PgDescription(description)
 
         primary_key_data = data.get('primary_key')
 
@@ -552,6 +568,7 @@ class PgFunction:
         self.name = name
         self.arguments = arguments
         self.return_type = return_type
+        self.returns_set = False
         self.src = None
         self.language = None
         self.description = None
@@ -570,23 +587,33 @@ class PgFunction:
         pg_function.language = data.get('language')
         pg_function.src = PgSourceCode(data['source'])
         pg_function.description = data.get('description')
+        pg_function.returns_set = data.get('returns_set', False)
 
         schema.functions.append(pg_function)
 
         return pg_function
 
+    def ident(self):
+        return '{}.{}'.format(self.schema.name, self.name)
+
     def to_json(self):
         attributes = [
             ('name', self.name),
             ('schema', self.schema.name),
-            ('return_type', self.return_type.to_json()),
+            ('return_type', self.return_type.to_json())
+        ]
+
+        if self.returns_set:
+            attributes.append(('returns_set', self.returns_set))
+
+        attributes.extend([
             ('language', self.language),
             ('arguments', [
                 argument.to_json()
                 for argument
                 in self.arguments
             ])
-        ]
+        ])
 
         if self.description is not None:
             attributes.append(
@@ -602,10 +629,11 @@ class PgFunction:
         query = (
             'SELECT pg_proc.oid, pronamespace, proname, prorettype, '
             'proargtypes, proallargtypes, proargmodes, proargnames, '
-            'pg_language.lanname, prosrc, description '
+            'pg_language.lanname, proretset, prosrc, description '
             'FROM pg_proc '
             'JOIN pg_language ON pg_language.oid = pg_proc.prolang '
-            'LEFT JOIN pg_description ON pg_description.objoid = pg_proc.oid'
+            'LEFT JOIN pg_description ON pg_description.objoid = pg_proc.oid '
+            'WHERE proisagg IS false'
         )
 
         query_args = tuple()
@@ -618,7 +646,107 @@ class PgFunction:
         def function_from_row(row):
             (
                 oid, namespace_oid, name, return_type_oid, arg_type_oids_str,
-                all_arg_type_oids, arg_modes, arg_names, language, src,
+                all_arg_type_oids, arg_modes, arg_names, language, returns_set,
+                src, description
+            ) = row
+
+            if arg_type_oids_str:
+                arg_type_oids = list(map(int, arg_type_oids_str.split(' ')))
+            else:
+                arg_type_oids = []
+
+            if all_arg_type_oids is None:
+                all_arg_type_oids = arg_type_oids
+
+            if arg_modes is None:
+                arg_modes = len(arg_type_oids) * ['i']
+
+            if arg_names is None:
+                arg_names = len(all_arg_type_oids) * [None]
+
+            arguments = [
+                PgArgument(empty_str_filter(name), database.types[type_oid], arg_mode, None)
+                for type_oid, name, arg_mode in zip(all_arg_type_oids, arg_names, arg_modes)
+            ]
+
+            pg_function = PgFunction(
+                database.schemas[namespace_oid], name, arguments,
+                database.types[return_type_oid]
+            )
+            pg_function.language = language
+            pg_function.src = PgSourceCode(src.strip())
+            pg_function.returns_set = returns_set
+
+            if description is not None:
+                pg_function.description = PgDescription(description)
+
+            return pg_function
+
+        return {
+            row[0]: function_from_row(row)
+            for row in rows
+        }
+
+
+class PgAggregate:
+    def __init__(self, schema, name, arguments):
+        self.schema = schema
+        self.name = name
+        self.arguments = arguments
+        self.sfunc = None
+        self.stype = None
+
+    def ident(self):
+        return '{}.{}'.format(self.schema.name, self.name)
+
+    @staticmethod
+    def load(database, data):
+        schema = database.register_schema(data['schema'])
+
+        arguments = [PgArgument.from_json(argument) for argument in data['arguments']]
+
+        aggregate = PgAggregate(schema, data['name'], arguments)
+
+        aggregate.sfunc = PgFunctionRef(None, data['sfunc'])
+        aggregate.stype = PgTypeRef(None, data['stype'])
+
+        return aggregate
+
+    def to_json(self):
+        attributes = [
+            ('name', self.name),
+            ('schema', self.schema.name),
+            ('sfunc', self.sfunc.ident()),
+            ('stype', self.stype.ident()),
+            ('arguments', [
+                argument.to_json() for argument in self.arguments
+            ])
+        ]
+
+        return OrderedDict(attributes)
+
+    @staticmethod
+    def load_all_from_db(conn, database):
+        query = (
+            'SELECT pg_proc.oid, pronamespace, proname, aggtransfn::oid, '
+            'aggtranstype, proargtypes, proallargtypes, proargmodes, '
+            'proargnames, description '
+            'FROM pg_proc '
+            'JOIN pg_aggregate ON pg_aggregate.aggfnoid = pg_proc.oid '
+            'LEFT JOIN pg_description ON pg_description.objoid = pg_proc.oid'
+        )
+
+        query_args = tuple()
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query, query_args)
+
+            rows = cursor.fetchall()
+
+        def aggregate_from_row(row):
+            (
+                oid, namespace_oid, name, sfunc_oid, stype_oid,
+                arg_type_oids_str, all_arg_type_oids, arg_modes, arg_names,
                 description
             ) = row
 
@@ -637,24 +765,18 @@ class PgFunction:
                 arg_names = len(all_arg_type_oids) * [None]
 
             arguments = [
-                PgArgument(name, database.types[type_oid], arg_mode, None)
+                PgArgument(empty_str_filter(name), database.types[type_oid], arg_mode, None)
                 for type_oid, name, arg_mode in zip(all_arg_type_oids, arg_names, arg_modes)
             ]
 
-            pg_function = PgFunction(
-                database.schemas[namespace_oid], name, arguments,
-                database.types[return_type_oid]
-            )
-            pg_function.language = language
-            pg_function.src = PgSourceCode(src.strip())
+            aggregate = PgAggregate(database.schemas[namespace_oid], name, arguments)
+            aggregate.sfunc = database.functions[sfunc_oid]
+            aggregate.stype = database.types[stype_oid]
 
-            if description is not None:
-                pg_function.description = PgDescription(description)
-
-            return pg_function
+            return aggregate
 
         return {
-            row[0]: function_from_row(row)
+            row[0]: aggregate_from_row(row)
             for row in rows
         }
 
@@ -671,6 +793,21 @@ class PgTypeRef:
     def __init__(self, registry, ref):
         self.registry = registry
         self.ref = ref
+
+    def ident(self):
+        return self.ref
+
+    def dereference(self):
+        return self.registry.get(self.ref)
+
+
+class PgFunctionRef:
+    def __init__(self, registry, ref):
+        self.registry = registry
+        self.ref = ref
+
+    def ident(self):
+        return self.ref
 
     def dereference(self):
         return self.registry.get(self.ref)
@@ -712,6 +849,9 @@ class PgType:
                 pg_type.element_type = pg_type.element_type.dereference()
 
         return pg_types
+
+    def ident(self):
+        return str(self)
 
     def to_json(self):
         return str(self)
@@ -831,7 +971,7 @@ class PgArgument:
     def from_json(data):
         return PgArgument(
             data.get('name'),
-            PgType(None, data['data_type']),
+            PgTypeRef(None, data['data_type']),
             data.get('mode'),
             data.get('default')
         )
@@ -954,7 +1094,8 @@ object_loaders = {
     'function': PgFunction.load,
     'view': PgView.load,
     'composite_type': PgCompositeType.load,
-    'enum_type': PgEnumType.load
+    'enum_type': PgEnumType.load,
+    'aggregate': PgAggregate.load
 }
 
 
@@ -965,3 +1106,13 @@ def load_object(database, object_data):
         return object_loaders[object_type](database, object_data)
     except IndexError:
         raise Exception('Unsupported object type: {}'.format(object_type))
+
+
+def empty_str_filter(maybe_empty_str):
+    if maybe_empty_str is None:
+        return None
+    else:
+        if len(maybe_empty_str) == 0:
+            return None
+        else:
+            return maybe_empty_str
