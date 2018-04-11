@@ -8,18 +8,26 @@ from pg_db_tools.pg_types import PgEnumType, PgTable, PgFunction, PgView, \
 
 def render_table_sql(table):
     options = []
+    post_options = []
+
+    if table.inherits:
+        post_options.append('INHERITS ({}.{})'.format(
+            quote_ident(table.inherits.schema.name),
+            quote_ident(table.inherits.name)
+        ))
 
     yield (
         'CREATE TABLE {options}{ident}\n'
         '(\n'
         '{columns_part}\n'
-        ');\n'
+        '){post_options};\n'
     ).format(
         options=''.join('{} '.format(option) for option in options),
         ident='{}.{}'.format(
             quote_ident(table.schema.name), quote_ident(table.name)
         ),
-        columns_part=',\n'.join(table_defining_components(table))
+        columns_part=',\n'.join(table_defining_components(table)),
+        post_options=' '.join(post_options)
     )
 
     if table.description:

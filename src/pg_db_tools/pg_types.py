@@ -245,6 +245,7 @@ class PgTable:
         self.unique = None
         self.check = None
         self.description = None
+        self.inherits = None
 
     def __str__(self):
         return '"{}"."{}"'.format(self.schema.name, self.name)
@@ -341,6 +342,17 @@ class PgTable:
             foreign_key
             for foreign_key in data.get('foreign_keys', [])
         ]
+
+        if 'inherits' in data:
+            inherits_schema = database.schemas[data['inherits']['schema']]
+
+            inherits_table = next(
+                table
+                for table in inherits_schema.tables
+                if table.name == data['inherits']['name']
+            )
+
+            table.inherits = inherits_table
 
         schema.tables.append(table)
 
