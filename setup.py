@@ -8,7 +8,10 @@ setup(
     author='Alfred Blokland',
     author_email='alfred.blokland@hendrikx-itc.nl',
     url='http://www.hendrikx-itc.nl',
-    packages=['pg_db_tools'],
+    packages=[
+        'pg_db_tools',
+        'pg_db_tools.commands'
+    ],
     install_requires=[
         'PyYAML', 'jsonschema', 'networkx'
     ],
