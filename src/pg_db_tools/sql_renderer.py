@@ -105,15 +105,22 @@ def render_exclude_constraint(exclude_data):
 def render_function_sql(pg_function):
     returns_part = '    RETURNS '
 
-    if pg_function.returns_set:
-        returns_part += 'SETOF '
+    table_arguments = [
+        argument for argument in pg_function.arguments if argument.mode == 't'
+    ]
 
-    returns_part += pg_function.return_type
+    if table_arguments:
+        returns_part += 'TABLE({})'.format(', '.join(render_argument(argument) for argument in table_arguments))
+    else:
+        if pg_function.returns_set:
+            returns_part += 'SETOF '
+
+        returns_part += pg_function.return_type
 
     return [
         'CREATE FUNCTION "{}"."{}"({})'.format(
             pg_function.schema.name, pg_function.name,
-            ', '.join(render_argument(argument) for argument in pg_function.arguments)
+            ', '.join(render_argument(argument) for argument in pg_function.arguments if argument.mode in ('i', 'o', 'b', 'v'))
         ),
         returns_part,
         'AS $$',
@@ -136,7 +143,10 @@ def render_composite_type_sql(pg_composite_type):
         ');\n'
     ).format(
         ident='{}.{}'.format(quote_ident(pg_composite_type.schema.name), quote_ident(pg_composite_type.name)),
-        columns_part=',\n'.join('  {}'.format(render_composite_type_column_definition(column_data)) for column_data in pg_composite_type.columns)
+        columns_part=',\n'.join(
+            '  {}'.format(render_composite_type_column_definition(column_data))
+            for column_data in pg_composite_type.columns
+        )
     )
 
 

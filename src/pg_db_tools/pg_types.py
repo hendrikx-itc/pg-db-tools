@@ -984,7 +984,7 @@ class PgArgument:
         return PgArgument(
             data.get('name'),
             PgTypeRef(None, data['data_type']),
-            data.get('mode'),
+            data.get('mode', 'i'),
             data.get('default')
         )
 
