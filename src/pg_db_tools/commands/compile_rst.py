@@ -4,7 +4,7 @@ import sys
 from io import TextIOWrapper
 
 from pg_db_tools.pg_types import load
-from pg_db_tools.rst_renderer import RstRenderer
+from pg_db_tools.rst_renderer import render_rst_file
 
 
 def setup_command_parser(subparsers):
@@ -37,5 +37,4 @@ def dot_command(args):
 
     data = load(args.infile)
 
-    renderer = RstRenderer()
-    renderer.render(out_file, data)
+    render_rst_file(out_file, data)

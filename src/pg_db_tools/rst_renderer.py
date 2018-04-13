@@ -1,28 +1,52 @@
+import os
 from functools import reduce
 
 from pg_db_tools import iter_join
 
 
-class RstRenderer:
-    @staticmethod
-    def render(out_file, database):
-        rendered_chunks = render_rst_chunks(database)
+def render_rst_directory(out_dir, database):
+    for schema_name, schema in database.schemas.items():
+        out_file_path = os.path.join(out_dir, '{}.rst'.format(schema_name))
 
-        out_file.writelines(rendered_chunks)
+        with open(out_file_path, 'w') as out_file:
+            out_file.writelines(render_rst_schema(schema))
+
+    index_file_path = os.path.join(out_dir, 'index.rst')
+
+    with open(index_file_path, 'w') as index_file:
+        index_file.write(
+            'Schema Reference\n'
+            '================\n'
+            '.. toctree::\n'
+        )
+
+        index_file.writelines(
+            '    {}\n'.format(schema.name) for schema in database.schemas.values()
+        )
+
+
+def render_rst_file(out_file, database):
+    rendered_chunks = render_rst_chunks(database)
+
+    out_file.writelines(rendered_chunks)
 
 
 def render_rst_chunks(database):
     for schema_name, schema in database.schemas.items():
-        yield '{}\n\n'.format(header(1, 'Schema ``{}``'.format(schema_name)))
+        yield from render_rst_schema(schema)
 
-        for pg_type in schema.types:
-            yield render_type(pg_type)
 
-        for table in schema.tables:
-            yield render_table(table)
+def render_rst_schema(schema):
+    yield '{}\n\n'.format(header(1, 'Schema ``{}``'.format(schema.name)))
 
-        for pg_function in schema.functions:
-            yield render_function(pg_function)
+    for pg_type in schema.types:
+        yield render_type(pg_type)
+
+    for table in schema.tables:
+        yield render_table(table)
+
+    for pg_function in schema.functions:
+        yield render_function(pg_function)
 
 
 header_level_symbol = {

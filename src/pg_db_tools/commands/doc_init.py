@@ -53,7 +53,10 @@ def copy_resource_tree(target_dir, package_name, resource_root, resource_dir='')
             target_path = os.path.join(target_dir, resource_dir, resource)
 
             data = {
-                'project_name': 'MyProject'
+                'project_name': 'MyProject',
+                'author': 'The Author',
+                'version': '1.0',
+                'release': '1.0.0a1'
             }
 
             with open(target_path, 'wb') as out_file:

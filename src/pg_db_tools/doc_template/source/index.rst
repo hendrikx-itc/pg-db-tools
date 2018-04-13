@@ -7,10 +7,10 @@ Welcome to MyProjectName's documentation!
 =========================================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Contents:
 
-
+   schema/index
 
 Indices and tables
 ==================
