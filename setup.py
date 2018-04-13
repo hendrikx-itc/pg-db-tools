@@ -13,13 +13,13 @@ setup(
         'pg_db_tools.commands'
     ],
     install_requires=[
-        'PyYAML', 'jsonschema', 'networkx'
+        'PyYAML', 'jsonschema', 'networkx', 'Jinja2'
     ],
     package_dir={
         '': 'src'
     },
     package_data={
-        'pg_db_tools': ['spec.schema']
+        'pg_db_tools': ['spec.schema', 'doc_template']
     },
     scripts=[
         'scripts/db-schema'
