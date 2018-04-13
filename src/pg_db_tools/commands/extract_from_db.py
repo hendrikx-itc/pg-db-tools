@@ -1,5 +1,5 @@
 """
-Provides the 'sql' sub-command including argument parsing
+Provides the 'from-db' sub-command including argument parsing
 """
 import sys
 from contextlib import closing
