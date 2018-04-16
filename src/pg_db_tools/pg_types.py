@@ -35,7 +35,7 @@ class PgDatabase:
             load_object(database, object_data)
             for object_data in data['objects']
         ]
-
+        
         return database
 
     @staticmethod
@@ -112,19 +112,33 @@ class PgDatabase:
 
         return database
 
-    def to_json(self):
+    def to_json(self, internal_order=False):
         def filter_schema(schema):
             return schema.name not in [
                 'pg_catalog', 'information_schema', 'pg_toast', 'pg_temp_1',
                 'pg_toast_temp_1', 'dep_recurse'
             ]
 
-        return OrderedDict(
-            objects=list(itertools.chain(*(
-                schema.to_json()
-                for schema in self.schemas.values() if filter_schema(schema)
-            )))
-        )
+        if internal_order:
+            return OrderedDict(
+                objects=[
+                    OrderedDict([(object.object_type, object.to_json())])
+                    for object in self.objects if filter_schema(object.schema)
+                ]
+            )
+        else:
+            return OrderedDict(
+                objects=list(itertools.chain(*(
+                    schema.to_json()
+                    for schema in self.schemas.values() if filter_schema(schema)
+                )))
+            )
+
+    def get_type_ref(self, typestring):
+        if '.' in typestring:
+            return PgTypeRef(self.register_schema(typestring.split('.',1)[0]), typestring.split('.',1)[1])
+        else:
+            return PgTypeRef(self.register_schema(DEFAULT_SCHEMA), typestring)
 
 
 def validate_schema(data):
@@ -206,6 +220,16 @@ class PgSchema:
 
         return schema
 
+    def get_type(self, typename):
+        for type in self.types + self.enum_types + self.composite_types + self.tables + self.views + self.aggregates:
+            if type.name == typename:
+                return type
+        else:
+            if self.name == DEFAULT_SCHEMA or typename.endswith('[]'):
+                return PgType(self, typename)
+            else:
+                raise KeyError('Type not defined in schema {}: {}'.format(self.name, typename))
+
     def to_json(self):
         return list(itertools.chain(
             (
@@ -246,6 +270,7 @@ class PgTable:
         self.check = None
         self.description = None
         self.inherits = None
+        self.object_type = 'table'
 
     def __str__(self):
         return '"{}"."{}"'.format(self.schema.name, self.name)
@@ -281,11 +306,14 @@ class PgTable:
         }
 
         query = (
-            'SELECT attrelid, attname, atttypid, pg_description.description '
+            'SELECT attrelid, attname, atttypid, attnotnull, atthasdef, pg_description.description, pg_attrdef.adbin, pg_attrdef.adsrc '
             'FROM pg_attribute '
             'LEFT JOIN pg_description '
             'ON pg_description.objoid = pg_attribute.attrelid '
             'AND pg_description.objsubid = pg_attribute.attnum '
+            'LEFT JOIN pg_attrdef '
+            'ON pg_attrdef.adrelid = pg_attribute.attrelid '
+            'AND pg_attrdef.adnum = pg_attribute.attnum '
             'WHERE attnum > 0'
         )
 
@@ -300,11 +328,10 @@ class PgTable:
 
         for key, group in itertools.groupby(sorted_column_rows, key=itemgetter(0)):
             table = tables.get(key)
-
             if table is not None:
                 table.columns = [
-                    PgColumn(column_name, database.types[column_type_oid])
-                    for table_oid, column_name, column_type_oid, column_description in group
+                    PgColumn.load(database, { 'name': column_name, 'data_type': database.types[column_type_oid], 'nullable': not column_notnull, 'hasdef': column_hasdef, 'default': column_default_binary })
+                    for table_oid, column_name, column_type_oid, column_notnull, column_hasdef, column_description, column_default_binary, column_default_human in group
                 ]
 
         return tables
@@ -317,7 +344,7 @@ class PgTable:
             schema,
             data['name'],
             [
-                PgColumn.load(column_data)
+                PgColumn.load(database, column_data)
                 for column_data in data['columns']
             ]
         )
@@ -339,10 +366,10 @@ class PgTable:
         table.exclude = data.get('exclude')
 
         table.foreign_keys = [
-            foreign_key
+            PgForeignKey.load(database, foreign_key)
             for foreign_key in data.get('foreign_keys', [])
         ]
-
+        
         if 'inherits' in data:
             inherits_schema = database.schemas[data['inherits']['schema']]
 
@@ -358,29 +385,35 @@ class PgTable:
 
         return table
 
-    def to_json(self):
-        attributes = [
-            ('name', self.name),
-            ('schema', self.schema.name)
-        ]
+    def to_json(self, short=False, showdefault=False):
+        if short:
+            if not showdefault and self.schema.name == DEFAULT_SCHEMA:
+                return self.name
+            else:
+                return '{}.{}'.format(self.schema.name, self.name)
+        else:
+            attributes = [
+                ('name', self.name),
+                ('schema', self.schema.name)
+            ]
 
-        if self.description is not None:
-            attributes.append(('description', self.description))
+            if self.description is not None:
+                attributes.append(('description', self.description))
 
-        attributes.append(
-            ('columns', [column.to_json() for column in self.columns])
-        )
+            attributes.append(
+                ('columns', [column.to_json() for column in self.columns])
+            )
 
-        if self.primary_key is not None:
-            attributes.append(('primary_key', self.primary_key.to_json()))
+            if self.primary_key is not None:
+                attributes.append(('primary_key', self.primary_key.to_json()))
 
-        if len(self.foreign_keys) > 0:
-            attributes.append((
-                'foreign_keys',
-                [foreign_key.to_json() for foreign_key in self.foreign_keys]
-            ))
+            if len(self.foreign_keys) > 0:
+                attributes.append((
+                    'foreign_keys',
+                    [foreign_key.to_json() for foreign_key in self.foreign_keys]
+                ))
 
-        return OrderedDict(attributes)
+            return OrderedDict(attributes)
 
 
 class PgPrimaryKey:
@@ -435,7 +468,7 @@ class PgColumn:
     def to_json(self):
         attributes = [
             ('name', self.name),
-            ('data_type', self.data_type.to_json()),
+            ('data_type', self.data_type.to_json(short=True, showdefault=False)),
             ('nullable', self.nullable)
         ]
 
@@ -444,14 +477,13 @@ class PgColumn:
 
         if self.default is not None:
             attributes.append(('default', self.default))
-
         return OrderedDict(attributes)
 
     @staticmethod
-    def load(data):
+    def load(database, data):
         column = PgColumn(
             data['name'],
-            data['data_type']
+            database.get_type_ref(str(data['data_type']))
         )
 
         column.description = data.get('description')
@@ -475,8 +507,8 @@ class PgForeignKey:
             ('columns', self.columns),
             ('references', OrderedDict([
                 ('table', OrderedDict([
-                    ('name', self.ref_table.name),
-                    ('schema', self.ref_table.schema.name)
+                    ('name', self.ref_table),
+                    ('schema', self.schema)
                 ])),
                 ('columns', self.ref_columns)
             ]))
@@ -522,12 +554,12 @@ class PgForeignKey:
         return dict(row_to_foreign_key(row) for row in rows)
 
     @staticmethod
-    def load(data):
+    def load(database, data):
         return PgForeignKey(
+            data['references']['table']['schema'],
             data['name'],
             data['columns'],
             data['references']['table']['name'],
-            data['references']['table']['schema'],
             data['references']['columns']
         )
 
@@ -537,6 +569,7 @@ class PgEnumType:
         self.schema = schema
         self.name = name
         self.labels = labels
+        self.object_type = 'enum_type'
 
     @staticmethod
     def load(database, data):
@@ -584,16 +617,17 @@ class PgFunction:
         self.src = None
         self.language = None
         self.description = None
-
+        self.object_type = 'function'
+        
     @staticmethod
     def load(database, data):
         schema = database.register_schema(data['schema'])
-
+        
         pg_function = PgFunction(
             schema,
             data['name'],
             [PgArgument.from_json(argument) for argument in data['arguments']],
-            data['return_type']
+            database.get_type_ref(str(data['return_type']))
         )
 
         pg_function.language = data.get('language')
@@ -612,7 +646,7 @@ class PgFunction:
         attributes = [
             ('name', self.name),
             ('schema', self.schema.name),
-            ('return_type', self.return_type.to_json())
+            ('return_type', self.return_type.to_json(short=True, showdefault=False))
         ]
 
         if self.returns_set:
@@ -707,6 +741,7 @@ class PgAggregate:
         self.arguments = arguments
         self.sfunc = None
         self.stype = None
+        self.object_type = 'aggregate'
 
     def ident(self):
         return '{}.{}'.format(self.schema.name, self.name)
@@ -721,6 +756,8 @@ class PgAggregate:
 
         aggregate.sfunc = PgFunctionRef(None, data['sfunc'])
         aggregate.stype = PgTypeRef(None, data['stype'])
+
+        schema.aggregates.append(aggregate)
 
         return aggregate
 
@@ -810,13 +847,34 @@ class PgTypeRef:
         return self.ref
 
     def dereference(self):
-        return self.registry.get(self.ref)
+        try:
+            return self.registry.get_type(self.ref)
+        except AttributeError:
+            return self.registry.get(self.ref)
 
+    def to_json(self, short=False, showdefault=True):
+        try:
+            return self.dereference().to_json(short=short, showdefault=showdefault)
+        except (AttributeError, KeyError):
+            if not self.registry:
+                return self.ref
+            elif not showdefault and self.registry.name == DEFAULT_SCHEMA:
+                return self.ref
+            else:
+                return '{}.{}'.format(self.registry.name, self.ref)
+
+    @property
+    def object_type(self):
+        try:
+            return self.dereference().object_type
+        except AttributeError:
+            return 'type'
 
 class PgFunctionRef:
     def __init__(self, registry, ref):
         self.registry = registry
         self.ref = ref
+        self.object_type = 'function'
 
     def ident(self):
         return self.ref
@@ -830,6 +888,7 @@ class PgType:
         self.schema = schema
         self.name = name
         self.element_type = None
+        self.object_type = 'type'
 
     @staticmethod
     def load_all_from_db(conn, database):
@@ -865,8 +924,11 @@ class PgType:
     def ident(self):
         return str(self)
 
-    def to_json(self):
-        return str(self)
+    def to_json(self, short=False, showdefault=True):
+        if not showdefault and self.schema.name == DEFAULT_SCHEMA:
+            return self.name
+        else:
+            return str(self)
 
     def __str__(self):
         if self.schema is None or self.schema.name == 'pg_catalog':
@@ -886,6 +948,7 @@ class PgCompositeType:
         self.schema = schema
         self.name = name
         self.columns = columns
+        self.object_type = 'composite_type'
 
     @staticmethod
     def load(database, data):
@@ -895,23 +958,31 @@ class PgCompositeType:
             schema,
             data['name'],
             [
-                PgColumn.load(column_data)
+                PgColumn.load(database, column_data)
                 for column_data in data['columns']
             ]
         )
 
         schema.composite_types.append(composite_type)
-
+        
         return composite_type
 
-    def to_json(self):
-        attributes = [
-            ('name', self.name),
-            ('schema', self.schema.name),
-            ('columns', [column.to_json() for column in self.columns])
-        ]
+    def to_json(self, short=False, showdefault=True):
+        if "composite type" in self.name:
+            print('table %s:%s'%(self.schema.name, self.name))
+        if short:
+            if not showdefault and self.schema.name == DEFAULT_SCHEMA:
+                return self.name
+            else:
+                return '{}.{}'.format(self.schema.name, self.name)
+        else:
+            attributes = [
+                ('name', self.name),
+                ('schema', self.schema.name),
+                ('columns', [column.to_json() for column in self.columns])
+            ]
 
-        return OrderedDict(attributes)
+            return OrderedDict(attributes)
 
     @staticmethod
     def load_all_from_db(conn, database):
@@ -994,7 +1065,7 @@ class PgArgument:
         if self.name is not None:
             attributes.append(('name', self.name))
 
-        attributes.append(('data_type', self.data_type.to_json()))
+        attributes.append(('data_type', self.data_type.to_json(short=True, showdefault=False)))
 
         if self.mode is not None and self.mode != 'i':
             attributes.append(('mode', self.mode))
@@ -1014,6 +1085,7 @@ class PgView:
         self.schema = schema
         self.name = name
         self.view_query = view_query
+        self.object_type = 'view'
 
     @staticmethod
     def load(database, data):
@@ -1113,7 +1185,7 @@ object_loaders = {
 
 def load_object(database, object_data):
     object_type, object_data = next(iter(object_data.items()))
-
+    
     try:
         return object_loaders[object_type](database, object_data)
     except IndexError:

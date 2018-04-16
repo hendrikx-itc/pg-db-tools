@@ -115,7 +115,7 @@ def render_function_sql(pg_function):
         if pg_function.returns_set:
             returns_part += 'SETOF '
 
-        returns_part += pg_function.return_type
+        returns_part += str(pg_function.return_type)
 
     return [
         'CREATE FUNCTION "{}"."{}"({})'.format(
