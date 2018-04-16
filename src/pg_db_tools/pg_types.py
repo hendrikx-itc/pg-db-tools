@@ -843,6 +843,9 @@ class PgTypeRef:
         self.registry = registry
         self.ref = ref
 
+    def __str__(self):
+        return self.ref
+
     def ident(self):
         return self.ref
 

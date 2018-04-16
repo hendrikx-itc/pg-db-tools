@@ -39,14 +39,23 @@ def render_rst_chunks(database):
 def render_rst_schema(schema):
     yield '{}\n\n'.format(header(1, 'Schema ``{}``'.format(schema.name)))
 
-    for pg_type in schema.types:
-        yield render_type(pg_type)
+    if len(schema.types):
+        yield '{}\n'.format(header(2, 'Types'))
 
-    for table in schema.tables:
-        yield render_table(table)
+        for pg_type in schema.types:
+            yield render_type(pg_type)
 
-    for pg_function in schema.functions:
-        yield render_function(pg_function)
+    if len(schema.tables):
+        yield '{}\n'.format(header(2, 'Tables'))
+
+        for table in schema.tables:
+            yield render_table(table)
+
+    if len(schema.functions):
+        yield '{}\n'.format(header(2, 'Functions'))
+
+        for pg_function in schema.functions:
+            yield render_function(pg_function)
 
 
 header_level_symbol = {
@@ -105,37 +114,52 @@ def nullable_marker(nullable):
 
 
 def render_function(pg_function):
+    def render_argument(argument):
+        if argument.name is None:
+            return str(argument.data_type)
+        else:
+            return '{} {}'.format(argument.name, str(argument.data_type))
+
     return (
-        '{}\n'
+        '{}({})\n'
         '\n'
     ).format(
-        header(2, 'Function ``{}``'.format(pg_function.name))
+        header(3, pg_function.name),
+        ', '.join(
+            render_argument(argument)
+            for argument in pg_function.arguments
+        )
     )
 
 
 def render_table(table):
-    return (
-        '{}\n'
-        '\n'
-        '{}\n'
-        '\n'
-    ).format(
-        header(2, 'Table ``{}``'.format(table.name)),
-        '\n'.join(
-            render_table_grid(
-                ['Column', 'Type', 'Nullable', 'Description'],
-                [
-                    (
-                        column.name,
-                        column.data_type,
-                        nullable_marker(column.nullable),
-                        column.description or ''
-                    )
-                    for column in table.columns
-                ]
-            )
+    lines = [
+        header(3, table.name)
+    ]
+
+    if table.description is not None:
+        lines.append(table.description)
+
+    lines.append('')
+
+    lines.extend(
+        render_table_grid(
+            ['Column', 'Type', 'Nullable', 'Description'],
+            [
+                (
+                    column.name,
+                    column.data_type,
+                    nullable_marker(column.nullable),
+                    column.description or ''
+                )
+                for column in table.columns
+            ]
         )
     )
+
+    lines.append('')
+
+    return ''.join('{}\n'.format(line) for line in lines)
 
 
 def render_table_grid(header, rows):
@@ -143,7 +167,7 @@ def render_table_grid(header, rows):
 
     def max_widths(widths, row):
         return [
-            max(width, len(cell_value))
+            max(width, len(str(cell_value)))
             for width, cell_value in zip(widths, row)
         ]
 
@@ -168,7 +192,7 @@ def render_table_grid(header, rows):
             (
                 '| {} |'.format(
                     ' | '.join(
-                        cell_value.ljust(width)
+                        str(cell_value).ljust(width)
                         for cell_value, width in zip(row, max_widths)
                     )
                 )
