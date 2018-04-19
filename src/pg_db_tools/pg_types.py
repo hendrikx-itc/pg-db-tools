@@ -501,14 +501,20 @@ class PgForeignKey:
         self.ref_table = ref_table
         self.ref_columns = ref_columns
 
+    def get_name(self, obj):
+        try:
+            return obj.name
+        except AttributeError:
+            return obj
+        
     def to_json(self):
         return OrderedDict([
             ('name', self.name),
             ('columns', self.columns),
             ('references', OrderedDict([
                 ('table', OrderedDict([
-                    ('name', self.ref_table.name),
-                    ('schema', self.ref_table.schema.name)
+                    ('name', self.get_name(self.ref_table)),
+                    ('schema', self.get_name(self.schema))
                 ])),
                 ('columns', self.ref_columns)
             ]))
