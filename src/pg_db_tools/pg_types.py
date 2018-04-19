@@ -507,8 +507,8 @@ class PgForeignKey:
             ('columns', self.columns),
             ('references', OrderedDict([
                 ('table', OrderedDict([
-                    ('name', self.ref_table),
-                    ('schema', self.schema)
+                    ('name', self.ref_table.name),
+                    ('schema', self.ref_table.schema.name)
                 ])),
                 ('columns', self.ref_columns)
             ]))
