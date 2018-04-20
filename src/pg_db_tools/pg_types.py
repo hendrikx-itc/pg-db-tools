@@ -330,7 +330,7 @@ class PgTable:
             table = tables.get(key)
             if table is not None:
                 table.columns = [
-                    PgColumn.load(database, { 'name': column_name, 'data_type': database.types[column_type_oid], 'nullable': not column_notnull, 'hasdef': column_hasdef, 'default': column_default_binary })
+                    PgColumn.load(database, { 'name': column_name, 'data_type': database.types[column_type_oid], 'nullable': not column_notnull, 'hasdef': column_hasdef, 'default': column_default_human })
                     for table_oid, column_name, column_type_oid, column_notnull, column_hasdef, column_description, column_default_binary, column_default_human in group
                 ]
 

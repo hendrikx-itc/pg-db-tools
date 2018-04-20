@@ -68,7 +68,7 @@ def table_defining_components(table):
 def render_column_definition(column):
     parts = [
         quote_ident(column.name),
-        column.data_type
+        str(column.data_type)
     ]
 
     if column.nullable is False:
@@ -247,14 +247,14 @@ class SqlRenderer:
             key_name=quote_ident(
                 '{}_{}_fk_{}'.format(schema.name, table.name, index)
             ),
-            columns=', '.join(foreign_key['columns']),
+            columns=', '.join(foreign_key.columns),
             ref_schema_name=quote_ident(
-                foreign_key['references']['table']['schema']
+                foreign_key.get_name(foreign_key.schema)
             ),
             ref_table_name=quote_ident(
-                foreign_key['references']['table']['name']
+                foreign_key.get_name(foreign_key.ref_table)
             ),
-            ref_columns=', '.join(foreign_key['references']['columns'])
+            ref_columns=', '.join(foreign_key.columns)
         )]
 
     def render_schema_sql(self, schema):
