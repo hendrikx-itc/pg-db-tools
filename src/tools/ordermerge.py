@@ -31,4 +31,4 @@ def main(source, ordersource):
 if __name__ == "__main__":
     source = load(open(sys.argv[1]).read())
     ordersource = load(open(sys.argv[2]).read())
-    print(main(source, ordersource))
+    main(source, ordersource)
