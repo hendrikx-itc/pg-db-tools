@@ -43,6 +43,13 @@ class PgDatabase:
         database = PgDatabase()
 
         database.schemas = PgSchema.load_all_from_db(conn)
+
+        database.sequences = PgSequence.load_all_from_db(conn, database)
+
+        for pg_sequence in database.sequences.values():
+            if pg_sequence not in pg_sequence.schema.sequences:
+                pg_sequence.schema.sequences.append(pg_sequence)
+
         database.types = PgType.load_all_from_db(conn, database)
 
         for pg_type in database.types.values():
@@ -58,29 +65,34 @@ class PgDatabase:
         )
 
         for pg_composite_type in database.composite_types.values():
-            pg_composite_type.schema.composite_types.append(pg_composite_type)
+            if pg_composite_type not in pg_composite_type.schema.composite_types:
+                pg_composite_type.schema.composite_types.append(pg_composite_type)
 
         database.tables = PgTable.load_all_from_db(conn, database)
 
         for pg_table in database.tables.values():
-            pg_table.schema.tables.append(pg_table)
+            if pg_table not in pg_table.schema.tables:
+                pg_table.schema.tables.append(pg_table)
 
         PgPrimaryKey.load_all_from_db(conn, database)
 
         database.views = PgView.load_all_from_db(conn, database)
 
         for pg_view in database.views.values():
-            pg_view.schema.views.append(pg_view)
+            if pg_view not in pg_view.schema.views:
+                pg_view.schema.views.append(pg_view)
 
         database.functions = PgFunction.load_all_from_db(conn, database)
 
         for pg_function in database.functions.values():
-            pg_function.schema.functions.append(pg_function)
+            if pg_function not in pg_function.schema.functions:
+                pg_function.schema.functions.append(pg_function)
 
         database.aggregates = PgAggregate.load_all_from_db(conn, database)
 
         for pg_aggregate in database.aggregates.values():
-            pg_aggregate.schema.aggregates.append(pg_aggregate)
+            if pg_aggregate not in pg_aggregate.schema.aggregates:
+                pg_aggregate.schema.aggregates.append(pg_aggregate)
 
         database.foreign_keys = PgForeignKey.load_all_from_db(conn, database)
 
@@ -181,6 +193,7 @@ class PgSchema:
         self.composite_types = []
         self.tables = []
         self.functions = []
+        self.sequences = []
         self.views = []
         self.foreign_keys = []
         self.aggregates = []
@@ -232,6 +245,10 @@ class PgSchema:
 
     def to_json(self):
         return list(itertools.chain(
+            (
+                OrderedDict([('sequence', seq.to_json())])
+                for seq in self.sequences
+            ),
             (
                 OrderedDict([('enum_type', enum_type.to_json())])
                 for enum_type in self.enum_types
@@ -740,6 +757,83 @@ class PgFunction:
         }
 
 
+class PgSequence:
+    def __init__(self, schema, name, startvalue="1", minvalue=None, maxvalue=None, increment="1"):
+        self.schema = schema
+        self.name = name
+        self.start_value = startvalue
+        self.minimum_value = minvalue
+        self.maximum_value = maxvalue
+        self.increment = increment
+        self.object_type = 'sequence'
+        
+    @staticmethod
+    def load(database, data):
+        schema = database.register_schema(data['schema'])
+        
+        pg_sequence = PgSequence(
+            schema,
+            data['name']
+        )
+
+        pg_sequence.start_value = data.get('startvalue', "1")
+        pg_sequence.minimum_value = data.get('minimumvalue')
+        pg_sequence.maximum_value = data.get('maximumvalue')
+        pg_sequence.increment = data.get('increment', "1")
+
+        schema.sequences.append(pg_sequence)
+
+        return pg_sequence
+
+    def ident(self):
+        return '{}.{}'.format(self.schema.name, self.name)
+
+    def to_json(self):
+        attributes = [
+            ('name', self.name),
+            ('schema', self.schema.name),
+            ('startvalue', self.start_value)
+        ]
+        if self.minimum_value:
+            attributes.append(('minimumvalue', self.minimum_value))
+        if self.maximum_value:
+            attributes.append(('maximumvalue', self.maximum_value))
+        attributes.append(('increment', self.increment))
+
+        return OrderedDict(attributes)
+
+    @staticmethod
+    def load_all_from_db(conn, database):
+        query = (
+            'SELECT sequence_schema, sequence_name, start_value, minimum_value, maximum_value, increment '
+            'FROM information_schema.sequences'
+        )
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query)
+
+            rows = cursor.fetchall()
+
+        def sequence_from_row(row):
+            ( schema, name, start_value, minimum_value, maximum_value, increment ) = row
+            minimum_value = str(minimum_value)
+            maximum_value = str(maximum_value)
+            if minimum_value == "1":
+                minimum_value = None
+            if maximum_value in [ "2147483647",  "9223372036854775807" ]:
+                maximum_value = None
+
+            return PgSequence(
+                database.register_schema(schema), name, start_value, minimum_value, maximum_value, increment
+            )
+
+
+        return {
+            "{}.{}".format(row[0],row[1]): sequence_from_row(row)
+            for row in rows
+        }
+    
+    
 class PgAggregate:
     def __init__(self, schema, name, arguments):
         self.schema = schema
@@ -850,7 +944,10 @@ class PgTypeRef:
         self.ref = ref
 
     def __str__(self):
-        return self.ref
+        if self.registry.name == DEFAULT_SCHEMA:
+            return self.ref
+        else:
+            return '{}.{}'.format(self.registry.name, self.ref)
 
     def ident(self):
         return self.ref
@@ -1188,7 +1285,8 @@ object_loaders = {
     'view': PgView.load,
     'composite_type': PgCompositeType.load,
     'enum_type': PgEnumType.load,
-    'aggregate': PgAggregate.load
+    'aggregate': PgAggregate.load,
+    'sequence': PgSequence.load
 }
 
 

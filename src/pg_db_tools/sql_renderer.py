@@ -3,7 +3,7 @@ from itertools import chain
 from pg_db_tools import iter_join
 from pg_db_tools.graph import database_to_graph
 from pg_db_tools.pg_types import PgEnumType, PgTable, PgFunction, PgView, \
-    PgCompositeType, PgAggregate
+    PgCompositeType, PgAggregate, PgSequence
 
 
 def render_table_sql(table):
@@ -129,6 +129,16 @@ def render_function_sql(pg_function):
     ]
 
 
+def render_sequence_sql(pg_sequence):
+    return [
+        'CREATE SEQUENCE {}.{}'.format(pg_sequence.schema.name, pg_sequence.name),
+        'START WITH {}'.format(pg_sequence.start_value),
+        'INCREMENT BY {}'.format(pg_sequence.increment),
+        'NO MINVALUE' if pg_sequence.minimum_value is None else 'MINVALUE {}'.format(pg_sequence.minimum_value),
+        'NO MAXVALUE' if pg_sequence.maximum_value is None else 'MAXVALUE {}'.format(pg_sequence.maximum_value),
+        'CACHE 1;'
+    ]    
+
 def render_view_sql(pg_view):
     return [
         'CREATE VIEW "{}"."{}" AS'.format(pg_view.schema.name, pg_view.name),
@@ -191,6 +201,7 @@ def render_argument(pg_argument):
 sql_renderers = {
     PgTable: render_table_sql,
     PgFunction: render_function_sql,
+    PgSequence: render_sequence_sql,
     PgView: render_view_sql,
     PgCompositeType: render_composite_type_sql,
     PgEnumType: render_enum_type_sql,
