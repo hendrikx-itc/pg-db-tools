@@ -123,9 +123,9 @@ def render_function_sql(pg_function):
             ', '.join(render_argument(argument) for argument in pg_function.arguments if argument.mode in ('i', 'o', 'b', 'v'))
         ),
         returns_part,
-        'AS $$',
+        'AS $function$' if '$$' in str(pg_function.src) else 'AS $$',
         str(pg_function.src),
-        '$$ LANGUAGE {};'.format(pg_function.language)
+        '$function$ LANGUAGE {};'.format(pg_function.language) if '$$' in str(pg_function.src) else '$$ LANGUAGE {};'.format(pg_function.language)
     ]
 
 
