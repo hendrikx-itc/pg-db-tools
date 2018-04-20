@@ -1,3 +1,4 @@
+
 import copy
 from contextlib import closing
 import json
@@ -351,6 +352,18 @@ class PgTable:
                     for table_oid, column_name, column_type_oid, column_notnull, column_hasdef, column_description, column_default_binary, column_default_human in group
                 ]
 
+        query = (
+            'SELECT inhrelid, inhparent FROM pg_inherits'
+        )
+        
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query)
+            inheritance = cursor.fetchall()
+            
+        for (child_oid, parent_oid) in inheritance:
+            if child_oid in tables and parent_oid in tables:
+                tables[child_oid].inherits = tables[parent_oid]
+
         return tables
 
     @staticmethod
@@ -390,13 +403,7 @@ class PgTable:
         if 'inherits' in data:
             inherits_schema = database.schemas[data['inherits']['schema']]
 
-            inherits_table = next(
-                table
-                for table in inherits_schema.tables
-                if table.name == data['inherits']['name']
-            )
-
-            table.inherits = inherits_table
+            table.inherits = PgTableRef(inherits_schema, data['inherits']['name'])
 
         schema.tables.append(table)
 
@@ -423,6 +430,15 @@ class PgTable:
 
             if self.primary_key is not None:
                 attributes.append(('primary_key', self.primary_key.to_json()))
+
+            if self.inherits:
+                attributes.append((
+                    'inherits',
+                    OrderedDict( [
+                        ('name', self.inherits.name),
+                        ('schema', self.inherits.schema.name)
+                    ] )
+                ))
 
             if len(self.foreign_keys) > 0:
                 attributes.append((
@@ -989,6 +1005,24 @@ class PgFunctionRef:
         return self.registry.get(self.ref)
 
 
+class PgTableRef:
+    def __init__(self, registry, ref):
+        self.registry = registry
+        self.ref = ref
+        self.schema = registry
+        self.name = ref
+        self.object_type = 'table'
+
+    def __str__(self):
+        return '"{}"."{}"'.format(self.registry.name, self.ref)
+
+    def dereference(self):
+        return self.registry.get(self.ref)
+
+    def to_json(self, short=False, showdefault=False):
+        return self.dereference.to_json(short=short, showdefault=showdefault)
+    
+    
 class PgType:
     def __init__(self, schema, name):
         self.schema = schema
