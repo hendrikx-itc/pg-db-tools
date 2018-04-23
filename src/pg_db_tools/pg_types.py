@@ -149,7 +149,7 @@ class PgDatabase:
 
     def get_type_ref(self, typestring):
         if '.' in typestring:
-            return PgTypeRef(self.register_schema(typestring.split('.',1)[0]), typestring.split('.',1)[1])
+            return PgTypeRef(self.register_schema(typestring.split('.', 1)[0]), typestring.split('.', 1)[1])
         else:
             return PgTypeRef(self.register_schema(DEFAULT_SCHEMA), typestring)
 
@@ -324,7 +324,8 @@ class PgTable:
         }
 
         query = (
-            'SELECT attrelid, attname, atttypid, attnotnull, atthasdef, pg_description.description, pg_attrdef.adbin, pg_attrdef.adsrc '
+            'SELECT attrelid, attname, atttypid, attnotnull, atthasdef, '
+            'pg_description.description, pg_attrdef.adbin, pg_attrdef.adsrc '
             'FROM pg_attribute '
             'LEFT JOIN pg_description '
             'ON pg_description.objoid = pg_attribute.attrelid '
@@ -348,8 +349,11 @@ class PgTable:
             table = tables.get(key)
             if table is not None:
                 table.columns = [
-                    PgColumn.load(database, { 'name': column_name, 'data_type': database.types[column_type_oid], 'nullable': not column_notnull, 'hasdef': column_hasdef, 'default': column_default_human })
-                    for table_oid, column_name, column_type_oid, column_notnull, column_hasdef, column_description, column_default_binary, column_default_human in group
+                    PgColumn.load(database, { 'name': column_name, 'data_type': database.types[column_type_oid],
+                                              'nullable': not column_notnull, 'hasdef': column_hasdef,
+                                              'default': column_default_human})
+                    for table_oid, column_name, column_type_oid, column_notnull, column_hasdef, column_description,
+                        column_default_binary, column_default_human in group
                 ]
 
         query = (
@@ -434,10 +438,10 @@ class PgTable:
             if self.inherits:
                 attributes.append((
                     'inherits',
-                    OrderedDict( [
+                    OrderedDict([
                         ('name', self.inherits.name),
                         ('schema', self.inherits.schema.name)
-                    ] )
+                    ])
                 ))
 
             if len(self.foreign_keys) > 0:
@@ -831,21 +835,20 @@ class PgSequence:
             rows = cursor.fetchall()
 
         def sequence_from_row(row):
-            ( schema, name, start_value, minimum_value, maximum_value, increment ) = row
+            (schema, name, start_value, minimum_value, maximum_value, increment) = row
             minimum_value = str(minimum_value)
             maximum_value = str(maximum_value)
             if minimum_value == "1":
                 minimum_value = None
-            if maximum_value in [ "2147483647",  "9223372036854775807" ]:
+            if maximum_value in ["2147483647",  "9223372036854775807"]:
                 maximum_value = None
 
             return PgSequence(
                 database.register_schema(schema), name, start_value, minimum_value, maximum_value, increment
             )
 
-
         return {
-            "{}.{}".format(row[0],row[1]): sequence_from_row(row)
+            "{}.{}".format(row[0], row[1]): sequence_from_row(row)
             for row in rows
         }
     
@@ -992,6 +995,7 @@ class PgTypeRef:
         except AttributeError:
             return 'type'
 
+
 class PgFunctionRef:
     def __init__(self, registry, ref):
         self.registry = registry
@@ -1020,7 +1024,7 @@ class PgTableRef:
         return self.registry.get(self.ref)
 
     def to_json(self, short=False, showdefault=False):
-        return self.dereference.to_json(short=short, showdefault=showdefault)
+        return self.dereference().to_json(short=short, showdefault=showdefault)
     
     
 class PgType:
@@ -1109,7 +1113,7 @@ class PgCompositeType:
 
     def to_json(self, short=False, showdefault=True):
         if "composite type" in self.name:
-            print('table %s:%s'%(self.schema.name, self.name))
+            print('table {}:{}'.format(self.schema.name, self.name))
         if short:
             if not showdefault and self.schema.name == DEFAULT_SCHEMA:
                 return self.name
