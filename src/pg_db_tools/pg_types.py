@@ -950,7 +950,6 @@ class PgAggregate:
 
 
 data_type_mapping = {
-    'name': 'name',
     'int2': 'smallint',
     'int4': 'integer',
     'int8': 'bigint'
@@ -1037,7 +1036,7 @@ class PgType:
     @staticmethod
     def load_all_from_db(conn, database):
         query = (
-            "SELECT oid, typname, typnamespace, typelem "
+            "SELECT oid, typname, typnamespace, typelem, typcategory "
             "FROM pg_type"
         )
 
@@ -1048,10 +1047,10 @@ class PgType:
 
         pg_types = {}
 
-        for oid, name, namespace_oid, element_oid in rows:
+        for oid, name, namespace_oid, element_oid, category in rows:
             pg_type = PgType(database.schemas[namespace_oid], name)
 
-            if element_oid != 0:
+            if category == 'A' and element_oid != 0:
                 # Store a reference, because the targeted type may not be
                 # loaded yet
                 pg_type.element_type = PgTypeRef(pg_types, element_oid)
@@ -1076,7 +1075,7 @@ class PgType:
 
     def __str__(self):
         if self.schema is None or self.schema.name == 'pg_catalog':
-            return data_type_mapping.get(self.name, self.name)
+            return data_type_mapping.get(self.name, "{}[]".format(str(self.element_type)) if self.element_type else self.name)
         else:
             if self.element_type is not None:
                 return "{}[]".format(str(self.element_type))
