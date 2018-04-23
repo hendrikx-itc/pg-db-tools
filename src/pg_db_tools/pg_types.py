@@ -6,6 +6,7 @@ from io import TextIOWrapper
 from collections import OrderedDict
 from operator import itemgetter
 import itertools
+import re
 
 from pkg_resources import resource_stream
 import yaml
@@ -25,6 +26,7 @@ class PgDatabase:
         self.function = {}
         self.objects = []
         self.views = {}
+        self.dependencyre = re.compile('([\w_]+)"?\.([\w_]+)')
 
     @staticmethod
     def load(data):
@@ -43,7 +45,7 @@ class PgDatabase:
     def load_from_db(conn):
         database = PgDatabase()
 
-        database.schemas = PgSchema.load_all_from_db(conn)
+        database.schemas = PgSchema.load_all_from_db(conn, database)
 
         database.sequences = PgSequence.load_all_from_db(conn, database)
 
@@ -102,17 +104,28 @@ class PgDatabase:
 
         database.dependencies = PgDepend.load_all_from_db(conn, database)
 
+        database.objects = list(database.sequences.values()) + list(database.enum_types.values()) +\
+                           list(database.composite_types.values()) + list(database.tables.values()) +\
+                           list(database.functions.values()) + list(database.aggregates.values()) + list(database.views.values())
+
         return database
 
     def register_schema(self, name):
         if name in self.schemas:
             return self.schemas.get(name)
         else:
-            schema = PgSchema(name)
+            schema = PgSchema(name, self)
 
             self.schemas[name] = schema
 
             return schema
+
+    def get_schema_by_name(self, name):
+        schemas = [schema for schema in self.schemas.values() if schema.name == name]
+        if schemas:
+            return schemas[0]
+        else:
+            return None
 
     def filter_objects(self, database_filter):
         database = PgDatabase()
@@ -131,21 +144,28 @@ class PgDatabase:
                 'pg_catalog', 'information_schema', 'pg_toast', 'pg_temp_1',
                 'pg_toast_temp_1', 'dep_recurse'
             ]
+        
+        objects_to_include = [object for object in self.objects if filter_schema(object.schema)]
+        for object in objects_to_include:
+            object.build_dependencies()
+        objects_included = []
+        while objects_to_include:
+            for object in objects_to_include:
+                if not object.is_blocked(objects_to_include):
+                    objects_included.append(object)
+                    objects_to_include.remove(object)
+                    break
+            else:
+                # There is a cyclic relationship somewhere; randomly allow the first element and try again
+                objects_included.append(objects_to_include[0])
+                objects_to_include = objects_to_include[1:]
 
-        if internal_order:
-            return OrderedDict(
-                objects=[
-                    OrderedDict([(object.object_type, object.to_json())])
-                    for object in self.objects if filter_schema(object.schema)
-                ]
-            )
-        else:
-            return OrderedDict(
-                objects=list(itertools.chain(*(
-                    schema.to_json()
-                    for schema in self.schemas.values() if filter_schema(schema)
-                )))
-            )
+        return OrderedDict(
+            objects=[
+                OrderedDict([(object.object_type, object.to_json())])
+                for object in objects_included
+            ]
+        )
 
     def get_type_ref(self, typestring):
         if '.' in typestring:
@@ -153,6 +173,17 @@ class PgDatabase:
         else:
             return PgTypeRef(self.register_schema(DEFAULT_SCHEMA), typestring)
 
+    def find_dependencies(self, text, ownname):
+        dependencies = []
+        for (schema_name, name) in self.dependencyre.findall(str(text)):
+            if name == ownname:
+                continue #do not let something be blocked by itself, or by another version of the same function
+            schema = self.get_schema_by_name(schema_name)
+            if schema:
+                for object in schema.getall(name):
+                    dependencies.append(object)
+        return dependencies
+        
 
 def validate_schema(data):
     with resource_stream(__name__, 'spec.schema') as schema_stream:
@@ -186,8 +217,28 @@ def load(infile):
     return database
 
 
-class PgSchema:
-    def __init__(self, name):
+class PgObject:
+    # abstract class, serving as a base class for the classes below
+    def is_blocked(self, blockingobjects):
+        return bool([object for object in self.dependencies if object in blockingobjects])
+
+    def build_dependencies(self):
+        self.dependencies = self.get_dependencies()
+
+    def get_dependencies(self):
+        # To be overwritten in child classes. The objects this depends on.
+        return []
+
+    def dereference(self):
+        return self
+
+    @property
+    def database(self):
+        return self.schema.database
+        
+
+class PgSchema(PgObject):
+    def __init__(self, name, database):
         self.name = name
         self.types = []
         self.enum_types = []
@@ -198,9 +249,14 @@ class PgSchema:
         self.views = []
         self.foreign_keys = []
         self.aggregates = []
+        self._database = database
 
+    @property
+    def database(self):
+        return self._database
+        
     @staticmethod
-    def load_all_from_db(conn):
+    def load_all_from_db(conn, database):
         query = (
             "SELECT pg_namespace.oid, pg_namespace.nspname "
             "FROM pg_namespace "
@@ -214,7 +270,7 @@ class PgSchema:
             rows = cursor.fetchall()
 
         return {
-            oid: PgSchema(name)
+            oid: PgSchema(name, database)
             for oid, name in rows
         }
 
@@ -222,7 +278,7 @@ class PgSchema:
         """
         Return new PgSchema object containing only filtered types and tables
         """
-        schema = PgSchema(self.name)
+        schema = PgSchema(self.name, self)
 
         schema.types = list(
             filter(database_filter.include_type, self.types)
@@ -243,6 +299,21 @@ class PgSchema:
                 return PgType(self, typename)
             else:
                 raise KeyError('Type not defined in schema {}: {}'.format(self.name, typename))
+            
+    @property
+    def objects(self):
+        return self.types + self.enum_types + self.composite_types + self.tables + self.views + self.aggregates +\
+            self.functions + self.sequences
+            
+    def get(self, name):
+        for obj in self.objects:
+            if obj.name == name:
+                return obj
+        else:
+            return None
+
+    def getall(self, name):
+        return [obj for obj in self.objects if obj.name == name]
 
     def to_json(self):
         return list(itertools.chain(
@@ -277,7 +348,7 @@ class PgSchema:
         ))
 
 
-class PgTable:
+class PgTable(PgObject):
     def __init__(self, schema, name, columns):
         self.schema = schema
         self.name = name
@@ -293,6 +364,12 @@ class PgTable:
     def __str__(self):
         return '"{}"."{}"'.format(self.schema.name, self.name)
 
+    def get_dependencies(self):
+        dependencies = [key.ref_table for key in self.foreign_keys]
+        if self.inherits:
+            dependencies.append(self.inherits)
+        return dependencies
+    
     @staticmethod
     def load_all_from_db(conn, database):
         query = (
@@ -453,7 +530,7 @@ class PgTable:
             return OrderedDict(attributes)
 
 
-class PgPrimaryKey:
+class PgPrimaryKey(PgObject):
     def __init__(self, name, columns):
         self.name = name
         self.columns = columns
@@ -494,7 +571,7 @@ class PgPrimaryKey:
         return PgPrimaryKey(data.get('name'), data.get('columns'))
 
 
-class PgColumn:
+class PgColumn(PgObject):
     def __init__(self, name, data_type):
         self.name = name
         self.data_type = data_type
@@ -607,7 +684,7 @@ class PgForeignKey:
         )
 
 
-class PgEnumType:
+class PgEnumType(PgObject):
     def __init__(self, schema, name, labels):
         self.schema = schema
         self.name = name
@@ -650,7 +727,7 @@ class PgEnumType:
         }
 
 
-class PgFunction:
+class PgFunction(PgObject):
     def __init__(self, schema, name, arguments, return_type):
         self.schema = schema
         self.name = name
@@ -661,6 +738,10 @@ class PgFunction:
         self.language = None
         self.description = None
         self.object_type = 'function'
+
+    def get_dependencies(self):
+        return [argument.data_type for argument in self.arguments] + [self.return_type] +\
+               self.database.find_dependencies(self.src, self.name)
         
     @staticmethod
     def load(database, data):
@@ -777,7 +858,7 @@ class PgFunction:
         }
 
 
-class PgSequence:
+class PgSequence(PgObject):
     def __init__(self, schema, name, startvalue="1", minvalue=None, maxvalue=None, increment="1"):
         self.schema = schema
         self.name = name
@@ -844,7 +925,7 @@ class PgSequence:
                 maximum_value = None
 
             return PgSequence(
-                database.register_schema(schema), name, start_value, minimum_value, maximum_value, increment
+                database.get_schema_by_name(schema), name, start_value, minimum_value, maximum_value, increment
             )
 
         return {
@@ -853,7 +934,7 @@ class PgSequence:
         }
     
     
-class PgAggregate:
+class PgAggregate(PgObject):
     def __init__(self, schema, name, arguments):
         self.schema = schema
         self.name = name
@@ -864,6 +945,9 @@ class PgAggregate:
 
     def ident(self):
         return '{}.{}'.format(self.schema.name, self.name)
+
+    def get_dependencies(self):
+        return [argument.data_type for argument in self.arguments] + [self.sfunc.dereference()] + [self.stype.dereference()]
 
     @staticmethod
     def load(database, data):
@@ -956,7 +1040,7 @@ data_type_mapping = {
 }
 
 
-class PgTypeRef:
+class PgTypeRef(PgObject):
     def __init__(self, registry, ref):
         self.registry = registry
         self.ref = ref
@@ -969,7 +1053,7 @@ class PgTypeRef:
 
     def ident(self):
         return self.ref
-
+    
     def dereference(self):
         try:
             return self.registry.get_type(self.ref)
@@ -995,7 +1079,7 @@ class PgTypeRef:
             return 'type'
 
 
-class PgFunctionRef:
+class PgFunctionRef(PgObject):
     def __init__(self, registry, ref):
         self.registry = registry
         self.ref = ref
@@ -1008,7 +1092,7 @@ class PgFunctionRef:
         return self.registry.get(self.ref)
 
 
-class PgTableRef:
+class PgTableRef(PgObject):
     def __init__(self, registry, ref):
         self.registry = registry
         self.ref = ref
@@ -1026,12 +1110,15 @@ class PgTableRef:
         return self.dereference().to_json(short=short, showdefault=showdefault)
     
     
-class PgType:
+class PgType(PgObject):
     def __init__(self, schema, name):
         self.schema = schema
         self.name = name
         self.element_type = None
         self.object_type = 'type'
+
+    def get_dependencies(self):
+        return [self.element_type] if self.element_type else []
 
     @staticmethod
     def load_all_from_db(conn, database):
@@ -1086,12 +1173,15 @@ class PgType:
                     return '{}.{}'.format(self.schema.name, self.name)
 
 
-class PgCompositeType:
+class PgCompositeType(PgObject):
     def __init__(self, schema, name, columns):
         self.schema = schema
         self.name = name
         self.columns = columns
         self.object_type = 'composite_type'
+
+    def get_dependencies(self):
+        return [column.data_type for column in self.columns]
 
     @staticmethod
     def load(database, data):
@@ -1223,12 +1313,15 @@ class PgViewQuery(str):
     pass
 
 
-class PgView:
+class PgView(PgObject):
     def __init__(self, schema, name, view_query):
         self.schema = schema
         self.name = name
         self.view_query = view_query
         self.object_type = 'view'
+
+    def get_dependencies(self):
+        return self.database.find_dependencies(self.view_query, self.name)
 
     @staticmethod
     def load(database, data):
