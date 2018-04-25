@@ -17,6 +17,10 @@ DEFAULT_SCHEMA = 'public'
 
 
 class PgDatabase:
+
+    dependencyre_with_arguments = re.compile('(?s)([\w_]+"?\.[\w_]+"?)\(')
+    dependencyre_without_arguments = re.compile('([\w_]+)"?\.([\w_]+)(?!\w)(?!"?\()')
+    
     def __init__(self):
         self.extensions = []
         self.schemas = {}
@@ -26,8 +30,7 @@ class PgDatabase:
         self.function = {}
         self.objects = []
         self.views = {}
-        self.dependencyre = re.compile('([\w_]+)"?\.([\w_]+)')
-
+ 
     @staticmethod
     def load(data):
         database = PgDatabase()
@@ -156,10 +159,18 @@ class PgDatabase:
                     objects_to_include.remove(object)
                     break
             else:
-                # There is a cyclic relationship somewhere; randomly allow the first element and try again
-                objects_included.append(objects_to_include[0])
-                objects_to_include = objects_to_include[1:]
-
+                # all remaining objects are in a cycle or depend on a cycle; try to pick one that leads to
+                # least chance of being problematic
+                for object in objects_to_include:
+                    if not object.is_blocked(objects_to_include, samenameblocks = False):
+                        objects_included.append(object)
+                        objects_to_include.remove(object)
+                        break
+                else:
+                    # not able to find some lower-risk object, just take one at random
+                    objects_included.append(objects_to_include[0])
+                    objects_to_include = objects_to_include[1:]
+                
         return OrderedDict(
             objects=[
                 OrderedDict([(object.object_type, object.to_json())])
@@ -173,11 +184,36 @@ class PgDatabase:
         else:
             return PgTypeRef(self.register_schema(DEFAULT_SCHEMA), typestring)
 
-    def find_dependencies(self, text, ownname):
+    def find_dependencies(self, text):
         dependencies = []
-        for (schema_name, name) in self.dependencyre.findall(str(text)):
-            if name == ownname:
-                continue #do not let something be blocked by itself, or by another version of the same function
+        remaining_text = text
+        for fullname in self.dependencyre_with_arguments.findall(str(text)):
+            loc = remaining_text.find(fullname + "(") + len(fullname)
+            assert remaining_text[loc] == '('
+            (schema_name, name) = fullname.replace('"', '').split('.')
+            loc2 = loc
+            depth = 1
+            commas = 0
+            while depth > 0 and loc2 < len(remaining_text):
+                loc2 += 1
+                if remaining_text[loc2] == '(':
+                    depth += 1
+                elif remaining_text[loc2] == ')':
+                    depth -= 1
+                elif remaining_text[loc2] == ',' and depth == 1:
+                    commas += 1
+            arguments = remaining_text[loc+1:loc2]
+            schema = self.get_schema_by_name(schema_name)
+            if arguments.strip():
+                argument_number = commas + 1
+            else:
+                argument_number = 0
+            if schema:
+                for object in schema.getall(name):
+                    if object.argument_number == argument_number:
+                        dependencies.append(object)
+            remaining_text = remaining_text[loc:]
+        for (schema_name, name) in self.dependencyre_without_arguments.findall(str(text)):
             schema = self.get_schema_by_name(schema_name)
             if schema:
                 for object in schema.getall(name):
@@ -219,8 +255,13 @@ def load(infile):
 
 class PgObject:
     # abstract class, serving as a base class for the classes below
-    def is_blocked(self, blockingobjects):
-        return bool([object for object in self.dependencies if object in blockingobjects])
+    def is_blocked(self, blockingobjects, samenameblocks = True):
+        # is this object dependent on some object in blockingobjects
+        # if samennameblocks is False, objects with the same name don't block
+        if samenameblocks:
+            return bool([object for object in self.dependencies if object in blockingobjects and object != self])
+        else:
+            return bool([object for object in self.dependencies if object in blockingobjects and object.name != self.name])
 
     def build_dependencies(self):
         self.dependencies = self.get_dependencies()
@@ -231,6 +272,13 @@ class PgObject:
 
     def dereference(self):
         return self
+
+    @property
+    def argument_number(self):
+        try:
+            return len(self.arguments)
+        except AttributeError:
+            return 0
 
     @property
     def database(self):
@@ -628,7 +676,6 @@ class PgForeignKey:
             ('references', OrderedDict([
                 ('table', OrderedDict([
                     ('name', self.get_name(self.ref_table)),
-                    ('schema', self.get_name(self.schema))
                 ])),
                 ('columns', self.ref_columns)
             ]))
@@ -670,7 +717,7 @@ class PgForeignKey:
             table.foreign_keys.append(pg_foreign_key)
 
             return oid, pg_foreign_key
-
+        
         return dict(row_to_foreign_key(row) for row in rows)
 
     @staticmethod
@@ -741,7 +788,7 @@ class PgFunction(PgObject):
 
     def get_dependencies(self):
         return [argument.data_type for argument in self.arguments] + [self.return_type] +\
-               self.database.find_dependencies(self.src, self.name)
+               self.database.find_dependencies(self.src)
         
     @staticmethod
     def load(database, data):
@@ -1201,8 +1248,6 @@ class PgCompositeType(PgObject):
         return composite_type
 
     def to_json(self, short=False, showdefault=True):
-        if "composite type" in self.name:
-            print('table {}:{}'.format(self.schema.name, self.name))
         if short:
             if not showdefault and self.schema.name == DEFAULT_SCHEMA:
                 return self.name
@@ -1321,7 +1366,7 @@ class PgView(PgObject):
         self.object_type = 'view'
 
     def get_dependencies(self):
-        return self.database.find_dependencies(self.view_query, self.name)
+        return self.database.find_dependencies(self.view_query)
 
     @staticmethod
     def load(database, data):
