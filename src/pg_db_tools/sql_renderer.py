@@ -3,7 +3,7 @@ from itertools import chain
 from pg_db_tools import iter_join
 from pg_db_tools.graph import database_to_graph
 from pg_db_tools.pg_types import PgEnumType, PgTable, PgFunction, PgView, \
-    PgCompositeType, PgAggregate, PgSequence
+    PgCompositeType, PgAggregate, PgSequence, PgSchema
 
 
 def render_table_sql(table):
@@ -198,7 +198,24 @@ def render_argument(pg_argument):
         )
 
 
+def render_schema_sql(pg_schema):
+    if pg_schema.name == 'public':
+        yield (
+            'CREATE SCHEMA IF NOT EXISTS {ident};'
+        ).format(
+            ident = quote_ident(pg_schema.name)
+        )
+    else:
+        yield (
+            'CREATE SCHEMA {ident};'
+        ).format(
+            ident = quote_ident(pg_schema.name)
+        )
+        
+
+
 sql_renderers = {
+    PgSchema: render_schema_sql,
     PgTable: render_table_sql,
     PgFunction: render_function_sql,
     PgSequence: render_sequence_sql,
@@ -228,11 +245,6 @@ class SqlRenderer:
 
     def render_chunk_sets(self, database):
         yield self.create_extension_statements(database)
-
-        for schema in sorted(
-                database.schemas.values(), key=lambda s: s.name):
-            for sql in self.render_schema_sql(schema):
-                yield sql
 
         for pg_object in database.objects:
             yield '\n'
@@ -269,22 +281,6 @@ class SqlRenderer:
             ),
             ref_columns=', '.join(foreign_key.ref_columns)
         )]
-
-    def render_schema_sql(self, schema):
-        # Assume the public schema already exists
-        if schema.name != 'public':
-            yield [self.create_schema_statement(schema)]
-
-    def create_schema_statement(self, schema):
-        options = []
-
-        if self.if_not_exists:
-            options.append('IF NOT EXISTS')
-
-        return 'CREATE SCHEMA {options}{ident};\n'.format(
-            options=''.join('{} '.format(option) for option in options),
-            ident=quote_ident(schema.name)
-        )
 
     def create_extension_statements(self, database):
         options = []

@@ -107,9 +107,9 @@ class PgDatabase:
 
         database.dependencies = PgDepend.load_all_from_db(conn, database)
 
-        database.objects = list(database.sequences.values()) + list(database.enum_types.values()) +\
-                           list(database.composite_types.values()) + list(database.tables.values()) +\
-                           list(database.functions.values()) + list(database.aggregates.values()) + list(database.views.values())
+        database.objects = list(database.schemas.values()) + list(database.sequences.values()) + list(database.enum_types.values()) +\
+                           list(database.composite_types.values()) + list(database.tables.values()) + list(database.functions.values()) +\
+                           list(database.aggregates.values()) + list(database.views.values())
 
         return database
 
@@ -264,7 +264,7 @@ class PgObject:
             return bool([object for object in self.dependencies if object in blockingobjects and object.name != self.name])
 
     def build_dependencies(self):
-        self.dependencies = self.get_dependencies()
+        self.dependencies = self.get_dependencies() + [self.schema]
 
     def get_dependencies(self):
         # To be overwritten in child classes. The objects this depends on.
@@ -298,6 +298,8 @@ class PgSchema(PgObject):
         self.foreign_keys = []
         self.aggregates = []
         self._database = database
+        self.schema = self
+        self.object_type = 'schema'
 
     @property
     def database(self):
@@ -321,6 +323,13 @@ class PgSchema(PgObject):
             oid: PgSchema(name, database)
             for oid, name in rows
         }
+
+    @staticmethod
+    def load(database, data):
+        return PgSchema(
+            data['name'],
+            database
+        )
 
     def filter_objects(self, database_filter):
         """
@@ -364,36 +373,9 @@ class PgSchema(PgObject):
         return [obj for obj in self.objects if obj.name == name]
 
     def to_json(self):
-        return list(itertools.chain(
-            (
-                OrderedDict([('sequence', seq.to_json())])
-                for seq in self.sequences
-            ),
-            (
-                OrderedDict([('enum_type', enum_type.to_json())])
-                for enum_type in self.enum_types
-            ),
-            (
-                OrderedDict([('composite_type', composite_type.to_json())])
-                for composite_type in self.composite_types
-            ),
-            (
-                OrderedDict([('table', table.to_json())])
-                for table in self.tables
-            ),
-            (
-                OrderedDict([('function', func.to_json())])
-                for func in self.functions
-            ),
-            (
-                OrderedDict([('aggregate', aggregate.to_json())])
-                for aggregate in self.aggregates
-            ),
-            (
-                OrderedDict([('view', view.to_json())])
-                for view in self.views
-            )
-        ))
+        return OrderedDict([
+            ('name', self.name),
+        ])
 
 
 class PgTable(PgObject):
@@ -1456,6 +1438,7 @@ class PgDepend:
 
 
 object_loaders = {
+    'schema': PgSchema.load,
     'table': PgTable.load,
     'function': PgFunction.load,
     'view': PgView.load,
