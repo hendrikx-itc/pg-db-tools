@@ -247,6 +247,10 @@ class SqlRenderer:
 
     @staticmethod
     def render_foreign_key(index, schema, table, foreign_key):
+        try:
+            key_name=foreign_key.name
+        except AttributeError:
+            key_name='{}_{}_fk_{}'.format(schema.name, table.name, index)
         return [(
             'ALTER TABLE {schema_name}.{table_name} '
             'ADD CONSTRAINT {key_name} '
@@ -255,9 +259,7 @@ class SqlRenderer:
         ).format(
             schema_name=quote_ident(schema.name),
             table_name=quote_ident(table.name),
-            key_name=quote_ident(
-                '{}_{}_fk_{}'.format(schema.name, table.name, index)
-            ),
+            key_name=quote_ident(key_name),
             columns=', '.join(foreign_key.columns),
             ref_schema_name=quote_ident(
                 foreign_key.get_name(foreign_key.schema)
@@ -265,7 +267,7 @@ class SqlRenderer:
             ref_table_name=quote_ident(
                 foreign_key.get_name(foreign_key.ref_table)
             ),
-            ref_columns=', '.join(foreign_key.columns)
+            ref_columns=', '.join(foreign_key.ref_columns)
         )]
 
     def render_schema_sql(self, schema):
