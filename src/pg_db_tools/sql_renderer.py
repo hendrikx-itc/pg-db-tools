@@ -3,7 +3,7 @@ from itertools import chain
 from pg_db_tools import iter_join
 from pg_db_tools.graph import database_to_graph
 from pg_db_tools.pg_types import PgEnumType, PgTable, PgFunction, PgView, \
-    PgCompositeType, PgAggregate, PgSequence, PgSchema
+    PgCompositeType, PgAggregate, PgSequence, PgSchema, PgRole
 
 
 def render_table_sql(table):
@@ -139,6 +139,25 @@ def render_sequence_sql(pg_sequence):
         'CACHE 1;'
     ]    
 
+
+def render_role_sql(pg_role):
+    attributes = (["LOGIN"] if pg_role.login else []) +\
+                 [
+                     "SUPERUSER" if pg_role.super else "NOSUPERUSER",
+                     "INHERIT" if pg_role.inherit else "NOINHERIT",
+                     "CREATEDB" if pg_role.createdb else "NOCREATEDB",
+                     "CREATEROLE;" if pg_role.createrole else "NOCREATEROLE;"
+                 ]
+    return [
+        "DO\n$$\nBEGIN",
+        "IF NOT EXISTS(SELECT * FROM pg_roles WHERE rolname = '{}') THEN".format(pg_role.name),
+        "CREATE ROLE {}".format(pg_role.name),
+        " ".join(attribute for attribute in attributes),
+        "END IF;\nEND\n$$;",
+        ] +\
+        [ "\nGRANT {} TO {};".format(membership.name, pg_role.name) for membership in pg_role.membership ]
+
+
 def render_view_sql(pg_view):
     return [
         'CREATE VIEW "{}"."{}" AS'.format(pg_view.schema.name, pg_view.name),
@@ -199,19 +218,11 @@ def render_argument(pg_argument):
 
 
 def render_schema_sql(pg_schema):
-    if pg_schema.name == 'public':
-        yield (
-            'CREATE SCHEMA IF NOT EXISTS {ident};'
-        ).format(
-            ident = quote_ident(pg_schema.name)
-        )
-    else:
-        yield (
-            'CREATE SCHEMA {ident};'
-        ).format(
-            ident = quote_ident(pg_schema.name)
-        )
-        
+    yield (
+        'CREATE SCHEMA IF NOT EXISTS {ident};'
+    ).format(
+        ident = quote_ident(pg_schema.name)
+    )
 
 
 sql_renderers = {
@@ -222,7 +233,8 @@ sql_renderers = {
     PgView: render_view_sql,
     PgCompositeType: render_composite_type_sql,
     PgEnumType: render_enum_type_sql,
-    PgAggregate: render_aggregate_sql
+    PgAggregate: render_aggregate_sql,
+    PgRole: render_role_sql
 }
 
 

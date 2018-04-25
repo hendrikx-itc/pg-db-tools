@@ -30,6 +30,7 @@ class PgDatabase:
         self.function = {}
         self.objects = []
         self.views = {}
+        self.roles = {}
  
     @staticmethod
     def load(data):
@@ -107,9 +108,13 @@ class PgDatabase:
 
         database.dependencies = PgDepend.load_all_from_db(conn, database)
 
-        database.objects = list(database.schemas.values()) + list(database.sequences.values()) + list(database.enum_types.values()) +\
-                           list(database.composite_types.values()) + list(database.tables.values()) + list(database.functions.values()) +\
-                           list(database.aggregates.values()) + list(database.views.values())
+        database.roles = PgRole.load_all_from_db(conn, database)
+
+        database.objects = list(database.schemas.values()) + list(database.roles.values()) +\
+                           list(database.sequences.values()) + list(database.enum_types.values()) +\
+                           list(database.composite_types.values()) + list(database.tables.values()) +\
+                           list(database.functions.values()) + list(database.aggregates.values()) +\
+                           list(database.views.values())
 
         return database
 
@@ -1021,7 +1026,7 @@ class PgAggregate(PgObject):
         query_args = tuple()
 
         with closing(conn.cursor()) as cursor:
-            cursor.execute(query, query_args)
+            cursor.execute(query, query_args) 
 
             rows = cursor.fetchall()
 
@@ -1063,6 +1068,89 @@ class PgAggregate(PgObject):
         }
 
 
+class PgRole(PgObject):
+    known_roles = {} # if necessary contains names as keys, roles as values
+    
+    def __init__(self, name, superuser, inherit, createrole, createdb, login, membership = None):
+        self.name = name
+        self.super = superuser
+        self.inherit = inherit
+        self.createrole = createrole
+        self.createdb = createdb
+        self.login = login
+        self.membership = membership or []
+        self.schema = self # a hack because roles don't have a schema, but some functions assume presence
+        self.object_type = 'role'
+
+    def ident(self):
+        return self.name
+
+    def get_dependencies(self):
+        return self.membership
+
+    @staticmethod
+    def load(database, data):
+        roles = [PgRole.known_roles[membership] for membership in data.get('memberships', [])]
+        pg_role = PgRole(
+            data['name'], data.get('super', False), data.get('inherit', True),
+            data.get('createrole', False), data.get('createdb', False),
+            data.get('login', False), roles
+        )
+        
+        PgRole.known_roles[data['name']] = pg_role
+
+        return pg_role
+
+    def to_json(self):
+        attributes = [
+            ('name', self.name),
+            ('super', self.super),
+            ('inherit', self.inherit),
+            ('createrole', self.createrole),
+            ('createdb', self.createdb),
+            ('login', self.login)
+            ]
+        if self.membership:
+            attributes.append(('memberships', [role.name for role in self.membership]))
+            
+        return OrderedDict(attributes)
+
+    def load_all_from_db(conn, database):
+        query = (
+            "SELECT oid, rolname, rolsuper, rolinherit, rolcreaterole, rolcreatedb, rolcanlogin "
+            "FROM pg_roles "
+            "WHERE rolname <> 'postgres' AND rolname NOT LIKE 'pg_%'"
+            )
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query)
+            rows = cursor.fetchall()
+
+        def role_from_row(row):
+            (oid, name, superuser, inherit, createrole, createdb, canlogin) = row
+            return PgRole(name, superuser, inherit, createrole, createdb, canlogin)
+            
+        roles = {
+            row[0]: role_from_row(row)
+            for row in rows
+        }
+
+        query = (
+            "SELECT roleid, member FROM pg_auth_members"
+            )
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query)
+            rows = cursor.fetchall()
+
+        for row in rows:
+            (role, member) = row
+            if role in roles and member in roles:
+                roles[member].membership.append(roles[role])
+
+        return roles
+            
+    
 data_type_mapping = {
     'int2': 'smallint',
     'int4': 'integer',
@@ -1445,7 +1533,8 @@ object_loaders = {
     'composite_type': PgCompositeType.load,
     'enum_type': PgEnumType.load,
     'aggregate': PgAggregate.load,
-    'sequence': PgSequence.load
+    'sequence': PgSequence.load,
+    'role': PgRole.load
 }
 
 
