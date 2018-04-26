@@ -1,4 +1,3 @@
-
 import copy
 from contextlib import closing
 import json
@@ -763,6 +762,12 @@ class PgEnumType(PgObject):
 
 
 class PgFunction(PgObject):
+    volatilities = {
+        "v": "volatile",
+        "s": "stable",
+        "i": "immutable"
+        }
+    
     def __init__(self, schema, name, arguments, return_type):
         self.schema = schema
         self.name = name
@@ -772,6 +777,8 @@ class PgFunction(PgObject):
         self.src = None
         self.language = None
         self.description = None
+        self.volatility = 'volatile'
+        self.strict = False
         self.object_type = 'function'
 
     def get_dependencies(self):
@@ -793,6 +800,8 @@ class PgFunction(PgObject):
         pg_function.src = PgSourceCode(data['source'])
         pg_function.description = data.get('description')
         pg_function.returns_set = data.get('returns_set', False)
+        pg_function.volatility = data.get('volatility', 'volatile')
+        pg_function.strict = data.get('strict', False)
 
         schema.functions.append(pg_function)
 
@@ -813,6 +822,8 @@ class PgFunction(PgObject):
 
         attributes.extend([
             ('language', self.language),
+            ('volatility', self.volatility),
+            ('strict', self.strict),
             ('arguments', [
                 argument.to_json()
                 for argument
@@ -834,7 +845,8 @@ class PgFunction(PgObject):
         query = (
             'SELECT pg_proc.oid, pronamespace, proname, prorettype, '
             'proargtypes, proallargtypes, proargmodes, proargnames, '
-            'pg_language.lanname, proretset, prosrc, description '
+            'pg_language.lanname, proretset, prosrc, provolatile, '
+            'proisstrict, description '
             'FROM pg_proc '
             'JOIN pg_language ON pg_language.oid = pg_proc.prolang '
             'LEFT JOIN pg_description ON pg_description.objoid = pg_proc.oid '
@@ -852,7 +864,7 @@ class PgFunction(PgObject):
             (
                 oid, namespace_oid, name, return_type_oid, arg_type_oids_str,
                 all_arg_type_oids, arg_modes, arg_names, language, returns_set,
-                src, description
+                src, volatility, strict, description
             ) = row
 
             if arg_type_oids_str:
@@ -881,6 +893,11 @@ class PgFunction(PgObject):
             pg_function.language = language
             pg_function.src = PgSourceCode(src.strip())
             pg_function.returns_set = returns_set
+            try:
+                pg_function.volatility = PgFunction.volatilities[volatility]
+            except KeyError:
+                pg_function.volatility = 'volatile'
+            pg_function.strict = strict
 
             if description is not None:
                 pg_function.description = PgDescription(description)

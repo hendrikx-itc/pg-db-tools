@@ -125,7 +125,12 @@ def render_function_sql(pg_function):
         returns_part,
         'AS $function$' if '$$' in str(pg_function.src) else 'AS $$',
         str(pg_function.src),
-        '$function$ LANGUAGE {};'.format(pg_function.language) if '$$' in str(pg_function.src) else '$$ LANGUAGE {};'.format(pg_function.language)
+        '${}$ LANGUAGE {} {}{};'.format(
+            'function' if '$$' in str(pg_function.src) else '',
+            pg_function.language,
+            pg_function.volatility.upper(),
+            ' STRICT' if pg_function.strict else ''
+        )
     ]
 
 
