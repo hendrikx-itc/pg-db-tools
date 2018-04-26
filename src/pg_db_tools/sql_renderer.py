@@ -3,7 +3,7 @@ from itertools import chain
 from pg_db_tools import iter_join
 from pg_db_tools.graph import database_to_graph
 from pg_db_tools.pg_types import PgEnumType, PgTable, PgFunction, PgView, \
-    PgCompositeType, PgAggregate, PgSequence, PgSchema, PgRole
+    PgCompositeType, PgAggregate, PgSequence, PgSchema, PgRole, PgTrigger
 
 
 def render_table_sql(table):
@@ -134,6 +134,16 @@ def render_function_sql(pg_function):
     ]
 
 
+def render_trigger_sql(pg_trigger):
+    timing = "INSTEAD OF" if pg_trigger.timing == 'instead' else pg_trigger.timing.upper()
+    return [
+        'CREATE TRIGGER {}'.format(pg_trigger.name),
+        '{} {} ON {}'.format(timing, " OR ".join(pg_trigger.triggertypes).upper(), pg_trigger.table),
+        'FOR EACH {}'.format(pg_trigger.affecteach.upper()),
+        'EXECUTE PROCEDURE {}();'.format(pg_trigger.function)
+        ]
+
+
 def render_sequence_sql(pg_sequence):
     return [
         'CREATE SEQUENCE {}.{}'.format(pg_sequence.schema.name, pg_sequence.name),
@@ -239,6 +249,7 @@ sql_renderers = {
     PgCompositeType: render_composite_type_sql,
     PgEnumType: render_enum_type_sql,
     PgAggregate: render_aggregate_sql,
+    PgTrigger: render_trigger_sql,
     PgRole: render_role_sql
 }
 

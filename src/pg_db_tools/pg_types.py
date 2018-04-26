@@ -30,7 +30,9 @@ class PgDatabase:
         self.objects = []
         self.views = {}
         self.roles = {}
- 
+        self.triggers = {}
+        self.sequences = {}
+        
     @staticmethod
     def load(data):
         database = PgDatabase()
@@ -100,6 +102,8 @@ class PgDatabase:
             if pg_aggregate not in pg_aggregate.schema.aggregates:
                 pg_aggregate.schema.aggregates.append(pg_aggregate)
 
+        database.triggers = PgTrigger.load_all_from_db(conn, database)
+
         database.foreign_keys = PgForeignKey.load_all_from_db(conn, database)
 
         for pg_foreign_key in database.foreign_keys.values():
@@ -113,7 +117,7 @@ class PgDatabase:
                            list(database.sequences.values()) + list(database.enum_types.values()) +\
                            list(database.composite_types.values()) + list(database.tables.values()) +\
                            list(database.functions.values()) + list(database.aggregates.values()) +\
-                           list(database.views.values())
+                           list(database.views.values()) + list(database.triggers.values())
 
         return database
 
@@ -781,6 +785,9 @@ class PgFunction(PgObject):
         self.strict = False
         self.object_type = 'function'
 
+    def __str__(self):
+        return '"{}"."{}"'.format(self.schema.name, self.name)
+
     def get_dependencies(self):
         return [argument.data_type for argument in self.arguments] + [self.return_type] +\
                self.database.find_dependencies(self.src)
@@ -908,6 +915,99 @@ class PgFunction(PgObject):
             row[0]: function_from_row(row)
             for row in rows
         }
+
+
+class PgTrigger(PgObject):
+    def __init__(self, table, name, function, tgtype=None):
+        self.table = table
+        self.name = name
+        self.function = function
+        if tgtype:
+            (self.timing, self.triggertypes, self.affecteach) = self.analyze_type(tgtype)
+        self.object_type = 'trigger'
+
+    def __str__(self):
+        return '{}.{}'.format(str(self.table), self.name)
+        
+    def get_dependencies(self):
+        return [self.table, self.function]
+
+    @property
+    def schema(self):
+        return self.table.schema
+
+    def analyze_type(self, tgtype):
+        triggertypes = []
+        affect_row = tgtype % 2
+        tgtype //= 2
+        timing = 'before' if tgtype % 2 else 'after'
+        tgtype //= 2
+        if tgtype % 2:
+            triggertypes.append('insert')
+        tgtype //= 2
+        if tgtype % 2:
+            triggertypes.append('delete')
+        tgtype //= 2
+        if tgtype % 2:
+            triggertypes.append('update')
+        tgtype //= 2
+        if tgtype % 2:
+            triggertypes.append('truncate')
+        tgtype //= 2
+        if tgtype % 2:
+            timing = 'instead'
+        return (timing, triggertypes, 'row' if affect_row else 'statement')
+
+    @staticmethod
+    def load_all_from_db(conn, database):
+        query = (
+            'SELECT oid, tgrelid, tgname, tgfoid, tgtype '
+            'from pg_trigger where NOT tgisinternal;'
+            )
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query)
+            rows = cursor.fetchall()
+
+        def trigger_from_row(row):
+            oid, tableid, name, functionid, tgtype = row
+            return PgTrigger(database.tables[tableid], name, database.functions[functionid], tgtype)
+
+        return {
+            row[0]: trigger_from_row(row)
+            for row in rows
+        }
+    
+    @staticmethod
+    def load(database, data):
+        pg_trigger = PgTrigger(
+            database.get_schema_by_name(data['table']['schema']).get(data['table']['name']),
+            data['name'],
+            database.get_schema_by_name(data['function']['schema']).get(data['function']['name'])
+        )
+
+        pg_trigger.timing = data.get('timing', 'after')
+        pg_trigger.triggertypes = data['triggertypes']
+        pg_trigger.affecteach = data.get('affecteach', 'statement')
+
+        return pg_trigger
+
+    def to_json(self):
+        attributes = [
+            ('table', OrderedDict([
+                ('schema', self.table.schema.name),
+                ('name', self.table.name)
+            ])),
+            ('name', self.name),
+            ('function', OrderedDict([
+                ('schema', self.function.schema.name),
+                ('name', self.function.name)
+            ])),
+            ('timing', self.timing),
+            ('triggertypes', self.triggertypes),
+            ('affecteach', self.affecteach)
+            ]
+        return OrderedDict(attributes)
 
 
 class PgSequence(PgObject):
@@ -1551,7 +1651,8 @@ object_loaders = {
     'enum_type': PgEnumType.load,
     'aggregate': PgAggregate.load,
     'sequence': PgSequence.load,
-    'role': PgRole.load
+    'role': PgRole.load,
+    'trigger': PgTrigger.load
 }
 
 
