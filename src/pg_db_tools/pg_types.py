@@ -1690,6 +1690,27 @@ class PgView(PgObject):
         return OrderedDict(attributes)
 
 
+class PgSetting(PgObject):
+    def __init__(self, name, value):
+        self.name = name
+        self.value = value
+
+    @staticmethod
+    def load_all_from_db(conn, database):
+        raise NotImplementedError
+
+    @staticmethod
+    def load(database, data):
+        return PgSetting(data['name'], data['value'])
+    
+    def to_json(self):
+        attributes = [
+            ('name', self.name),
+            ('value', self.value)
+            ]
+        return OrderedDict(attributes)
+
+    
 class PgDepend:
     def __init__(self, dependent_obj, referenced_obj):
         self.dependent_obj = dependent_obj
@@ -1740,7 +1761,8 @@ object_loaders = {
     'sequence': PgSequence.load,
     'role': PgRole.load,
     'trigger': PgTrigger.load,
-    'cast': PgCast.load
+    'cast': PgCast.load,
+    'setting': PgSetting.load
 }
 
 

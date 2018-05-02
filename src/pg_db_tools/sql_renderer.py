@@ -4,7 +4,16 @@ from pg_db_tools import iter_join
 from pg_db_tools.graph import database_to_graph
 from pg_db_tools.pg_types import PgEnumType, PgTable, PgFunction, PgView, \
     PgCompositeType, PgAggregate, PgSequence, PgSchema, PgRole, PgTrigger, \
-    PgCast
+    PgCast, PgSetting
+
+
+def render_setting_sql(pg_setting):
+    return [
+        "DO $$ BEGIN",
+        "EXECUTE 'ALTER DATABASE ' || current_database() || ' SET {} TO {}';".format(pg_setting.name, pg_setting.value),
+        "END; $$;\n",
+        "SET {} TO {};".format(pg_setting.name, pg_setting.value)
+        ]
 
 
 def render_table_sql(table):
@@ -253,6 +262,7 @@ def render_schema_sql(pg_schema):
 
 
 sql_renderers = {
+    PgSetting: render_setting_sql,
     PgSchema: render_schema_sql,
     PgTable: render_table_sql,
     PgFunction: render_function_sql,
@@ -263,7 +273,7 @@ sql_renderers = {
     PgAggregate: render_aggregate_sql,
     PgTrigger: render_trigger_sql,
     PgRole: render_role_sql,
-    PgCast: render_cast_sql
+    PgCast: render_cast_sql,
 }
 
 
