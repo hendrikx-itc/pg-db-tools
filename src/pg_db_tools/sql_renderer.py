@@ -3,7 +3,8 @@ from itertools import chain
 from pg_db_tools import iter_join
 from pg_db_tools.graph import database_to_graph
 from pg_db_tools.pg_types import PgEnumType, PgTable, PgFunction, PgView, \
-    PgCompositeType, PgAggregate, PgSequence, PgSchema, PgRole, PgTrigger
+    PgCompositeType, PgAggregate, PgSequence, PgSchema, PgRole, PgTrigger, \
+    PgCast
 
 
 def render_table_sql(table):
@@ -155,6 +156,17 @@ def render_sequence_sql(pg_sequence):
     ]    
 
 
+def render_cast_sql(pg_cast):
+    return [
+        'CREATE CAST ({} AS {}) WITH FUNCTION {}({}){};'.format(
+            pg_cast.source,
+            pg_cast.target,
+            pg_cast.function,
+            pg_cast.source,
+            ' AS IMPLICIT' if pg_cast.implicit else ''
+        )]
+
+
 def render_role_sql(pg_role):
     attributes = (["LOGIN"] if pg_role.login else []) +\
                  [
@@ -250,7 +262,8 @@ sql_renderers = {
     PgEnumType: render_enum_type_sql,
     PgAggregate: render_aggregate_sql,
     PgTrigger: render_trigger_sql,
-    PgRole: render_role_sql
+    PgRole: render_role_sql,
+    PgCast: render_cast_sql
 }
 
 

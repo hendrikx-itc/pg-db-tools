@@ -13,7 +13,7 @@ from jsonschema import validate
 
 
 DEFAULT_SCHEMA = 'public'
-
+SILENT_SCHEMAS = [DEFAULT_SCHEMA, 'pg_catalog']
 
 class PgDatabase:
 
@@ -32,6 +32,7 @@ class PgDatabase:
         self.roles = {}
         self.triggers = {}
         self.sequences = {}
+        self.casts = {}
         
     @staticmethod
     def load(data):
@@ -109,6 +110,8 @@ class PgDatabase:
         for pg_foreign_key in database.foreign_keys.values():
             pg_foreign_key.schema.foreign_keys.append(pg_foreign_key)
 
+        database.casts = PgCast.load_all_from_db(conn, database)
+            
         database.dependencies = PgDepend.load_all_from_db(conn, database)
 
         database.roles = PgRole.load_all_from_db(conn, database)
@@ -117,7 +120,8 @@ class PgDatabase:
                            list(database.sequences.values()) + list(database.enum_types.values()) +\
                            list(database.composite_types.values()) + list(database.tables.values()) +\
                            list(database.functions.values()) + list(database.aggregates.values()) +\
-                           list(database.views.values()) + list(database.triggers.values())
+                           list(database.views.values()) + list(database.triggers.values()) +\
+                           list(database.casts.values())
 
         return database
 
@@ -126,15 +130,15 @@ class PgDatabase:
             return self.schemas.get(name)
         else:
             schema = PgSchema(name, self)
-
             self.schemas[name] = schema
-
             return schema
 
     def get_schema_by_name(self, name):
         schemas = [schema for schema in self.schemas.values() if schema.name == name]
         if schemas:
             return schemas[0]
+        elif name in SILENT_SCHEMAS:
+            return PgSchema(name, self)
         else:
             return None
 
@@ -360,7 +364,7 @@ class PgSchema(PgObject):
             if type.name == typename:
                 return type
         else:
-            if self.name == DEFAULT_SCHEMA or typename.endswith('[]'):
+            if self.name in SILENT_SCHEMAS or typename.endswith('[]'):
                 return PgType(self, typename)
             else:
                 raise KeyError('Type not defined in schema {}: {}'.format(self.name, typename))
@@ -530,7 +534,7 @@ class PgTable(PgObject):
 
     def to_json(self, short=False, showdefault=False):
         if short:
-            if not showdefault and self.schema.name == DEFAULT_SCHEMA:
+            if not showdefault and self.schema.name in SILENT_SCHEMAS:
                 return self.name
             else:
                 return '{}.{}'.format(self.schema.name, self.name)
@@ -1010,6 +1014,83 @@ class PgTrigger(PgObject):
         return OrderedDict(attributes)
 
 
+class PgCast(PgObject):
+    def __init__(self, source, target, function, implicit = False):
+        self.source = source
+        self.target = target
+        self.function = function
+        self.implicit = implicit
+        self.object_type = 'cast'
+
+    def __str__(self):
+        return '{}::{}'.format(str(self.source), str(self.target))
+
+    def get_dependencies(self):
+        return [self.source, self.target, self.function]
+
+    @property
+    def schema(self):
+        return self.source.schema
+
+    @staticmethod
+    def load_all_from_db(conn, database):
+        query = (
+            'SELECT oid, castsource, casttarget, castfunc, castcontext '
+            'FROM pg_cast '
+            'WHERE castmethod = \'f\''
+            )
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query)
+            rows = cursor.fetchall()
+            
+        def cast_from_row(row):
+            oid, sourceid, targetid, funcit, context = row
+            if sourceid not in database.types:
+                return None
+            if database.types[sourceid].schema.name in SILENT_SCHEMAS:
+                return None
+            return PgCast(
+                database.types[sourceid],
+                database.types[targetid],
+                database.functions[funcit],
+                context == 'i'
+            )
+
+        return {
+            row[0]: cast_from_row(row)
+            for row in rows
+            if cast_from_row(row)
+        }
+
+    @staticmethod
+    def load(database, data):
+        return PgCast(
+            database.get_schema_by_name(data['source']['schema']).get_type(data['source']['name']),
+            database.get_schema_by_name(data['target']['schema']).get_type(data['target']['name']),
+            database.get_schema_by_name(data['function']['schema']).get(data['function']['name']),
+            data.get('implicit', False)
+        )
+
+    def to_json(self):
+        attributes = [
+            ('source', OrderedDict([
+                ('schema', self.source.schema.name),
+                ('name', self.source.name)
+            ])),
+            ('target', OrderedDict([
+                ('schema', self.target.schema.name),
+                ('name', self.target.name)
+            ])),
+            ('function', OrderedDict([
+                ('schema', self.function.schema.name),
+                ('name', self.function.name)
+            ])),
+            ('implicit', self.implicit)
+            ]
+        return OrderedDict(attributes)
+    
+    
 class PgSequence(PgObject):
     def __init__(self, schema, name, startvalue="1", minvalue=None, maxvalue=None, increment="1"):
         self.schema = schema
@@ -1281,7 +1362,7 @@ class PgTypeRef(PgObject):
         self.ref = ref
 
     def __str__(self):
-        if self.registry.name == DEFAULT_SCHEMA:
+        if self.registry.name in SILENT_SCHEMAS:
             return self.ref
         else:
             return '{}.{}'.format(self.registry.name, self.ref)
@@ -1301,7 +1382,7 @@ class PgTypeRef(PgObject):
         except (AttributeError, KeyError):
             if not self.registry:
                 return self.ref
-            elif not showdefault and self.registry.name == DEFAULT_SCHEMA:
+            elif not showdefault and self.registry.name in SILENT_SCHEMAS:
                 return self.ref
             else:
                 return '{}.{}'.format(self.registry.name, self.ref)
@@ -1390,7 +1471,7 @@ class PgType(PgObject):
         return str(self)
 
     def to_json(self, short=False, showdefault=True):
-        if not showdefault and self.schema.name == DEFAULT_SCHEMA:
+        if not showdefault and self.schema.name in SILENT_SCHEMAS:
             return self.name
         else:
             return str(self)
@@ -1415,6 +1496,12 @@ class PgCompositeType(PgObject):
         self.columns = columns
         self.object_type = 'composite_type'
 
+    def __str__(self):
+        if self.schema in SILENT_SCHEMAS:
+            return self.name
+        else:
+            return '{}.{}'.format(self.schema.name, self.name)
+
     def get_dependencies(self):
         return [column.data_type for column in self.columns]
 
@@ -1437,7 +1524,7 @@ class PgCompositeType(PgObject):
 
     def to_json(self, short=False, showdefault=True):
         if short:
-            if not showdefault and self.schema.name == DEFAULT_SCHEMA:
+            if not showdefault and self.schema.name in SILENT_SCHEMAS:
                 return self.name
             else:
                 return '{}.{}'.format(self.schema.name, self.name)
@@ -1652,7 +1739,8 @@ object_loaders = {
     'aggregate': PgAggregate.load,
     'sequence': PgSequence.load,
     'role': PgRole.load,
-    'trigger': PgTrigger.load
+    'trigger': PgTrigger.load,
+    'cast': PgCast.load
 }
 
 
