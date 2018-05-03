@@ -650,12 +650,14 @@ class PgColumn(PgObject):
 
 
 class PgForeignKey:
-    def __init__(self, schema, name, columns, ref_table, ref_columns):
+    def __init__(self, schema, name, columns, ref_table, ref_columns, on_update = None, on_delete = None):
         self.schema = schema
         self.name = name
         self.columns = columns
         self.ref_table = ref_table
         self.ref_columns = ref_columns
+        self.on_update = on_update
+        self.on_delete = on_delete
 
     def get_name(self, obj):
         try:
@@ -664,7 +666,7 @@ class PgForeignKey:
             return obj
         
     def to_json(self):
-        return OrderedDict([
+        arguments = [
             ('name', self.name),
             ('columns', self.columns),
             ('references', OrderedDict([
@@ -674,13 +676,27 @@ class PgForeignKey:
                 ])),
                 ('columns', self.ref_columns)
             ]))
-        ])
+        ]
+        if self.on_update:
+            arguments.append(('on_update', self.on_update))
+        if self.on_delete:
+            arguments.append(('on_delete', self.on_delete))
+        return OrderedDict(arguments)
 
     @staticmethod
     def load_all_from_db(conn, database):
+        action_type = {
+            'a': None,
+            'r': 'restrict',
+            'c': 'cascade',
+            'n': 'set null',
+            'd': 'set default'
+        }
+    
         query = (
             'SELECT pg_constraint.oid, connamespace, conname, conrelid, '
-            'array_agg(col.attname), confrelid,  array_agg(refcol.attname) '
+            'array_agg(col.attname), confrelid, array_agg(refcol.attname), '
+            'confupdtype, confdeltype '
             'FROM pg_constraint '
             'JOIN pg_attribute col '
             'ON col.attrelid = pg_constraint.conrelid '
@@ -690,7 +706,7 @@ class PgForeignKey:
             'AND refcol.attnum = ANY(confkey) '
             'WHERE contype = \'f\' '
             'GROUP BY pg_constraint.oid, connamespace, conname, conrelid, '
-            'confrelid'
+            'confrelid, confupdtype, confdeltype'
         )
 
         with closing(conn.cursor()) as cursor:
@@ -699,7 +715,7 @@ class PgForeignKey:
             rows = cursor.fetchall()
 
         def row_to_foreign_key(row):
-            oid, namespace_oid, name, table_oid, columns, ref_table_oid, ref_columns = row
+            oid, namespace_oid, name, table_oid, columns, ref_table_oid, ref_columns, on_update, on_delete = row
 
             namespace = database.schemas[namespace_oid]
 
@@ -707,7 +723,7 @@ class PgForeignKey:
 
             ref_table = database.tables[ref_table_oid]
 
-            pg_foreign_key = PgForeignKey(namespace, name, columns, ref_table, ref_columns)
+            pg_foreign_key = PgForeignKey(namespace, name, columns, ref_table, ref_columns, action_type[on_update], action_type[on_delete])
 
             table.foreign_keys.append(pg_foreign_key)
 
@@ -722,7 +738,9 @@ class PgForeignKey:
             data['name'],
             data['columns'],
             data['references']['table']['name'],
-            data['references']['columns']
+            data['references']['columns'],
+            data.get('on_update', None),
+            data.get('on_delete', None)
         )
 
 

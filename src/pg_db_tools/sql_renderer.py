@@ -318,7 +318,7 @@ class SqlRenderer:
             'ALTER TABLE {schema_name}.{table_name} '
             'ADD CONSTRAINT {key_name} '
             'FOREIGN KEY ({columns}) '
-            'REFERENCES {ref_schema_name}.{ref_table_name} ({ref_columns});'
+            'REFERENCES {ref_schema_name}.{ref_table_name} ({ref_columns}){on_update}{on_delete};'
         ).format(
             schema_name=quote_ident(schema.name),
             table_name=quote_ident(table.name),
@@ -330,7 +330,9 @@ class SqlRenderer:
             ref_table_name=quote_ident(
                 foreign_key.get_name(foreign_key.ref_table)
             ),
-            ref_columns=', '.join(foreign_key.ref_columns)
+            ref_columns=', '.join(foreign_key.ref_columns),
+            on_update = ' ON UPDATE {}'.format(foreign_key.on_update.upper()) if foreign_key.on_update else '',
+            on_delete = ' ON DELETE {}'.format(foreign_key.on_delete.upper()) if foreign_key.on_delete else '',
         )]
 
     def create_extension_statements(self, database):
