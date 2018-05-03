@@ -14,6 +14,8 @@ from jsonschema import validate
 
 DEFAULT_SCHEMA = 'public'
 SILENT_SCHEMAS = [DEFAULT_SCHEMA, 'pg_catalog']
+SKIPPED_SCHEMAS = [ 'pg_catalog', 'information_schema', 'pg_toast', 'pg_temp_1',
+                    'pg_toast_temp_1', 'dep_recurse']
 
 class PgDatabase:
 
@@ -155,13 +157,7 @@ class PgDatabase:
         return database
 
     def to_json(self, internal_order=False):
-        def filter_schema(schema):
-            return schema.name not in [
-                'pg_catalog', 'information_schema', 'pg_toast', 'pg_temp_1',
-                'pg_toast_temp_1', 'dep_recurse'
-            ]
-        
-        objects_to_include = [object for object in self.objects if filter_schema(object.schema)]
+        objects_to_include = [object for object in self.objects if object.schema.name not in SKIPPED_SCHEMAS]
         for object in objects_to_include:
             object.build_dependencies()
         objects_included = []
@@ -1049,7 +1045,10 @@ class PgCast(PgObject):
 
     @property
     def schema(self):
-        return self.source.schema
+        if self.source.schema.name in SKIPPED_SCHEMAS:
+            return self.target.schema
+        else:
+            return self.source.schema
 
     @staticmethod
     def load_all_from_db(conn, database):
@@ -1065,10 +1064,6 @@ class PgCast(PgObject):
             
         def cast_from_row(row):
             oid, sourceid, targetid, funcit, context = row
-            if sourceid not in database.types:
-                return None
-            if database.types[sourceid].schema.name in SILENT_SCHEMAS:
-                return None
             return PgCast(
                 database.types[sourceid],
                 database.types[targetid],
@@ -1079,7 +1074,6 @@ class PgCast(PgObject):
         return {
             row[0]: cast_from_row(row)
             for row in rows
-            if cast_from_row(row)
         }
 
     @staticmethod
