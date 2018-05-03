@@ -33,6 +33,7 @@ class PgDatabase:
         self.triggers = {}
         self.sequences = {}
         self.casts = {}
+        self.rows = []
         
     @staticmethod
     def load(data):
@@ -1728,6 +1729,53 @@ class PgSetting(PgObject):
             ]
         return OrderedDict(attributes)
 
+
+class PgRow(PgObject):
+    def __init__(self, table):
+        self.table = table
+        self.values = OrderedDict()
+        self.schema = table.schema
+
+    def get_dependencies(self):
+        return [self.table]
+
+    @staticmethod
+    def load_all_from_db(conn, database):
+        raise NotImplementedError
+
+    @staticmethod
+    def load(database, data):
+        pgrow = PgRow(database.get_schema_by_name(data['table']['schema']).get(data['table']['name']))
+        for value in data['values']:
+            pgrow.values[value['column']] = str(value['value']).lower()
+            if value.get('string', False):
+                pgrow.values[value['column']] = "'{}'".format(pgrow.values[value['column']])
+        return pgrow
+
+    def to_json(self):
+        # WARNING: This function has not been tested yet!!!
+        values = []
+        for column in self.values:
+            if values[column].startswith("'") and values[column].endswith("'"):
+                values.append(OrderedDict([
+                    ('column', column),
+                    ('value', values[column][1:-1])
+                    ('string', True)
+                ]))
+            else:
+                values.append(OrderedDict([
+                    ('column', column),
+                    ('value', values[column])
+                ]))
+        attributes = [
+            ('table', OrderedDict([
+                ('name', self.table.name),
+                ('schema', self.table.schema.name)
+            ]))
+            ('values', values)
+            ]
+        return OrderedDict(attributes)
+
     
 class PgDepend:
     def __init__(self, dependent_obj, referenced_obj):
@@ -1780,7 +1828,8 @@ object_loaders = {
     'role': PgRole.load,
     'trigger': PgTrigger.load,
     'cast': PgCast.load,
-    'setting': PgSetting.load
+    'setting': PgSetting.load,
+    'row': PgRow.load
 }
 
 
