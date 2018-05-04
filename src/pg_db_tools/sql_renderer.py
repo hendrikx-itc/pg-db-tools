@@ -50,6 +50,10 @@ def render_table_sql(table):
             quote_string(escape_string(table.description))
         )
 
+    if table.indexes:
+        for index in table.indexes:
+            yield ('{};\n'.format(index.definition))
+
 
 def table_defining_components(table):
     for column_data in table.columns:

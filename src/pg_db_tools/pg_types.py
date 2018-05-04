@@ -119,6 +119,8 @@ class PgDatabase:
 
         database.roles = PgRole.load_all_from_db(conn, database)
 
+        PgIndex.load_all_from_db(conn, database)
+
         database.objects = list(database.schemas.values()) + list(database.roles.values()) +\
                            list(database.sequences.values()) + list(database.enum_types.values()) +\
                            list(database.composite_types.values()) + list(database.tables.values()) +\
@@ -378,6 +380,13 @@ class PgSchema(PgObject):
         else:
             return None
 
+    def get_table(self, name):
+        for table in self.tables:
+            if table. name == name:
+                return table
+        else:
+            return None
+
     def getall(self, name):
         return [obj for obj in self.objects if obj.name == name]
 
@@ -398,6 +407,7 @@ class PgTable(PgObject):
         self.check = None
         self.description = None
         self.inherits = None
+        self.indexes = []
         self.object_type = 'table'
 
     def __str__(self):
@@ -525,6 +535,10 @@ class PgTable(PgObject):
 
             table.inherits = PgTableRef(inherits_schema, data['inherits']['name'])
 
+        if 'indexes' in data:
+            for index in data['indexes']:
+                table.indexes.append(PgIndex.load(table, index))
+
         schema.tables.append(table)
 
         return table
@@ -560,10 +574,16 @@ class PgTable(PgObject):
                     ])
                 ))
 
-            if len(self.foreign_keys) > 0:
+            if self.foreign_keys:
                 attributes.append((
                     'foreign_keys',
                     [foreign_key.to_json() for foreign_key in self.foreign_keys]
+                ))
+
+            if self.indexes:
+                attributes.append((
+                    'indexes',
+                    [index.to_json() for index in self.indexes]
                 ))
 
             return OrderedDict(attributes)
@@ -1770,6 +1790,43 @@ class PgRow(PgObject):
             ]
         return OrderedDict(attributes)
 
+
+class PgIndex:
+    def __init__(self, table, name, definition):
+        self.table = table
+        self.name = name
+        self.definition = definition
+        self.schema = table.schema
+
+    @staticmethod
+    def load_all_from_db(conn, database):
+        query = (
+            "SELECT schemaname, tablename, indexname, indexdef "
+            "FROM pg_indexes"
+        )
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query)
+            rows = cursor.fetchall()
+
+        for (schemaname, tablename, name, definition) in rows:
+            if name.endswith('_pkey'):
+                continue
+            table = database.get_schema_by_name(schemaname).get_table(tablename)
+            table.indexes.append(PgIndex(table, name, definition))
+
+        return OrderedDict()
+
+    @staticmethod
+    def load(table, data):
+        return PgIndex(table, data['name'], data['definition'])
+
+    def to_json(self):
+        return OrderedDict([
+            ('name', self.name),
+            ('definition', self.definition)
+        ])
+    
     
 class PgDepend:
     def __init__(self, dependent_obj, referenced_obj):
