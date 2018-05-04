@@ -260,9 +260,10 @@ def render_argument(pg_argument):
     if pg_argument.name is None:
         return str(pg_argument.data_type.ident())
     else:
-        return '{} {}'.format(
+        return '{} {}{}'.format(
             quote_ident(pg_argument.name),
-            str(pg_argument.data_type.ident())
+            str(pg_argument.data_type.ident()),
+            '' if pg_argument.default is None else ' DEFAULT {}'.format(pg_argument.default)
         )
 
 

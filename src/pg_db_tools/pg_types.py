@@ -892,7 +892,9 @@ class PgFunction(PgObject):
             'SELECT pg_proc.oid, pronamespace, proname, prorettype, '
             'proargtypes, proallargtypes, proargmodes, proargnames, '
             'pg_language.lanname, proretset, prosrc, provolatile, '
-            'proisstrict, description '
+            'proisstrict, '
+            'pg_get_expr(proargdefaults, 0), ' 
+            'description '
             'FROM pg_proc '
             'JOIN pg_language ON pg_language.oid = pg_proc.prolang '
             'LEFT JOIN pg_description ON pg_description.objoid = pg_proc.oid '
@@ -910,7 +912,7 @@ class PgFunction(PgObject):
             (
                 oid, namespace_oid, name, return_type_oid, arg_type_oids_str,
                 all_arg_type_oids, arg_modes, arg_names, language, returns_set,
-                src, volatility, strict, description
+                src, volatility, strict, defaults, description
             ) = row
 
             if arg_type_oids_str:
@@ -932,6 +934,14 @@ class PgFunction(PgObject):
                 for type_oid, name, arg_mode in zip(all_arg_type_oids, arg_names, arg_modes)
             ]
 
+            if defaults:
+                defaults = [d.strip() for d in str(defaults).split(',')]
+            else:
+                defaults = []
+            defaults = [None] * (len(arguments) - len(defaults)) + defaults
+            for (argument, default) in zip(arguments, defaults):
+                argument.default = default
+                
             pg_function = PgFunction(
                 database.schemas[namespace_oid], name, arguments,
                 database.types[return_type_oid]
