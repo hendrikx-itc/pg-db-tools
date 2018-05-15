@@ -149,13 +149,13 @@ def render_function_sql(pg_function):
 
 
 def render_trigger_sql(pg_trigger):
-    timing = "INSTEAD OF" if pg_trigger.timing == 'instead' else pg_trigger.timing.upper()
+    when = "INSTEAD OF" if pg_trigger.when == 'instead' else pg_trigger.when.upper()
     return [
         'CREATE TRIGGER {}'.format(pg_trigger.name),
-        '{} {} ON {}'.format(timing, " OR ".join(pg_trigger.triggertypes).upper(), pg_trigger.table),
+        '{} {} ON {}'.format(when, " OR ".join(pg_trigger.events).upper(), pg_trigger.table),
         'FOR EACH {}'.format(pg_trigger.affecteach.upper()),
         'EXECUTE PROCEDURE {}();'.format(pg_trigger.function)
-        ]
+    ]
 
 
 def render_sequence_sql(pg_sequence):

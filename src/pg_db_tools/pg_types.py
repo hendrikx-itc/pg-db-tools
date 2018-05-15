@@ -967,12 +967,21 @@ class PgFunction(PgObject):
 
 
 class PgTrigger(PgObject):
-    def __init__(self, table, name, function, tgtype=None):
+    TRIGGER_TYPE_ROW = (1 << 0)
+    TRIGGER_TYPE_BEFORE = (1 << 1)
+    TRIGGER_TYPE_INSERT = (1 << 2)
+    TRIGGER_TYPE_DELETE = (1 << 3)
+    TRIGGER_TYPE_UPDATE = (1 << 4)
+    TRIGGER_TYPE_TRUNCATE = (1 << 5)
+    TRIGGER_TYPE_INSTEAD = (1 << 6)
+
+    def __init__(self, table, name, function, when, events, affecteach):
         self.table = table
         self.name = name
         self.function = function
-        if tgtype:
-            (self.timing, self.triggertypes, self.affecteach) = self.analyze_type(tgtype)
+        self.when = when
+        self.events = events
+        self.affecteach = affecteach
         self.object_type = 'trigger'
 
     def __str__(self):
@@ -985,33 +994,42 @@ class PgTrigger(PgObject):
     def schema(self):
         return self.table.schema
 
-    def analyze_type(self, tgtype):
-        triggertypes = []
-        affect_row = tgtype % 2
-        tgtype //= 2
-        timing = 'before' if tgtype % 2 else 'after'
-        tgtype //= 2
-        if tgtype % 2:
-            triggertypes.append('insert')
-        tgtype //= 2
-        if tgtype % 2:
-            triggertypes.append('delete')
-        tgtype //= 2
-        if tgtype % 2:
-            triggertypes.append('update')
-        tgtype //= 2
-        if tgtype % 2:
-            triggertypes.append('truncate')
-        tgtype //= 2
-        if tgtype % 2:
-            timing = 'instead'
-        return (timing, triggertypes, 'row' if affect_row else 'statement')
+    @staticmethod
+    def analyze_type(tgtype):
+        if tgtype & PgTrigger.TRIGGER_TYPE_ROW:
+            affect = 'row'
+        else:
+            affect = 'statement'
+
+        if tgtype & PgTrigger.TRIGGER_TYPE_BEFORE:
+            when = 'before'
+        else:
+            when = 'after'
+
+        if tgtype & PgTrigger.TRIGGER_TYPE_INSTEAD:
+            when = 'instead'
+
+        events = []
+
+        if tgtype & PgTrigger.TRIGGER_TYPE_INSERT:
+            events.append('insert')
+
+        if tgtype & PgTrigger.TRIGGER_TYPE_DELETE:
+            events.append('delete')
+
+        if tgtype & PgTrigger.TRIGGER_TYPE_UPDATE:
+            events.append('update')
+
+        if tgtype & PgTrigger.TRIGGER_TYPE_TRUNCATE:
+            events.append('truncate')
+
+        return when, events, affect
 
     @staticmethod
     def load_all_from_db(conn, database):
         query = (
             'SELECT oid, tgrelid, tgname, tgfoid, tgtype '
-            'from pg_trigger where NOT tgisinternal;'
+            'FROM pg_trigger WHERE NOT tgisinternal'
             )
 
         with closing(conn.cursor()) as cursor:
@@ -1020,7 +1038,13 @@ class PgTrigger(PgObject):
 
         def trigger_from_row(row):
             oid, tableid, name, functionid, tgtype = row
-            return PgTrigger(database.tables[tableid], name, database.functions[functionid], tgtype)
+
+            when, events, affect_each = PgTrigger.analyze_type(tgtype)
+
+            return PgTrigger(
+                database.tables[tableid], name, database.functions[functionid],
+                when, events, affect_each
+            )
 
         return {
             row[0]: trigger_from_row(row)
@@ -1029,20 +1053,17 @@ class PgTrigger(PgObject):
     
     @staticmethod
     def load(database, data):
-        pg_trigger = PgTrigger(
+        return PgTrigger(
             database.get_schema_by_name(data['table']['schema']).get(data['table']['name']),
             data['name'],
-            database.get_schema_by_name(data['function']['schema']).get(data['function']['name'])
+            database.get_schema_by_name(data['function']['schema']).get(data['function']['name']),
+            data.get('when', 'after'),
+            data['events'],
+            data.get('affecteach', 'statement')
         )
 
-        pg_trigger.timing = data.get('timing', 'after')
-        pg_trigger.triggertypes = data['triggertypes']
-        pg_trigger.affecteach = data.get('affecteach', 'statement')
-
-        return pg_trigger
-
     def to_json(self):
-        attributes = [
+        return OrderedDict([
             ('table', OrderedDict([
                 ('schema', self.table.schema.name),
                 ('name', self.table.name)
@@ -1052,11 +1073,10 @@ class PgTrigger(PgObject):
                 ('schema', self.function.schema.name),
                 ('name', self.function.name)
             ])),
-            ('timing', self.timing),
-            ('triggertypes', self.triggertypes),
+            ('when', self.when),
+            ('events', self.events),
             ('affecteach', self.affecteach)
-            ]
-        return OrderedDict(attributes)
+        ])
 
 
 class PgCast(PgObject):
