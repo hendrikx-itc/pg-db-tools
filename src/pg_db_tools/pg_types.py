@@ -147,6 +147,9 @@ class PgDatabase:
         else:
             return None
 
+    def blockers_from_dependencies(self, object):
+        return [dependency.referenced_obj for dependency in self.dependencies if dependency.dependent_obj == object]
+
     def filter_objects(self, database_filter):
         database = PgDatabase()
         database.extensions = copy.copy(self.extensions)
@@ -173,14 +176,21 @@ class PgDatabase:
                 # all remaining objects are in a cycle or depend on a cycle; try to pick one that leads to
                 # least chance of being problematic
                 for object in objects_to_include:
-                    if not object.is_blocked(objects_to_include, samenameblocks = False):
+                    blockingobjects = self.blockers_from_dependencies(object)
+                    if not [x for x in blockingobjects if x in objects_include] and not object.is_blocked(objects_to_include, samenameblocks = False):
                         objects_included.append(object)
                         objects_to_include.remove(object)
                         break
                 else:
-                    # not able to find some lower-risk object, just take one at random
-                    objects_included.append(objects_to_include[0])
-                    objects_to_include = objects_to_include[1:]
+                    for object in objects_to_include:
+                        if not object.is_blocked(objects_to_include, samenameblocks = False):
+                            objects_included.append(object)
+                            objects_to_include.remove(object)
+                            break
+                    else:
+                        # not able to find some lower-risk object, just take one at random
+                        objects_included.append(objects_to_include[0])
+                        objects_to_include = objects_to_include[1:]
                 
         return OrderedDict(
             objects=[
@@ -1096,7 +1106,10 @@ class PgCast(PgObject):
     @property
     def schema(self):
         if self.source.schema.name in SKIPPED_SCHEMAS:
-            return self.target.schema
+            if self.target.schema.name in SKIPPED_SCHEMAS:
+                return self.function.schema
+            else:
+                return self.target.schema
         else:
             return self.source.schema
 
@@ -1139,15 +1152,15 @@ class PgCast(PgObject):
         attributes = [
             ('source', OrderedDict([
                 ('schema', self.source.schema.name),
-                ('name', self.source.name)
+                ('name', str(self.source))
             ])),
             ('target', OrderedDict([
                 ('schema', self.target.schema.name),
-                ('name', self.target.name)
+                ('name', str(self.target))
             ])),
             ('function', OrderedDict([
                 ('schema', self.function.schema.name),
-                ('name', self.function.name)
+                ('name', str(self.function))
             ])),
             ('implicit', self.implicit)
             ]
@@ -1413,6 +1426,7 @@ class PgRole(PgObject):
             
     
 data_type_mapping = {
+    'name': 'name',
     'int2': 'smallint',
     'int4': 'integer',
     'int8': 'bigint'
@@ -1534,10 +1548,7 @@ class PgType(PgObject):
         return str(self)
 
     def to_json(self, short=False, showdefault=True):
-        if not showdefault and self.schema.name in SILENT_SCHEMAS:
-            return self.name
-        else:
-            return str(self)
+        return str(self)
 
     def __str__(self):
         if self.schema is None or self.schema.name == 'pg_catalog':
