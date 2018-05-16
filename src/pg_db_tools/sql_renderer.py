@@ -54,6 +54,13 @@ def render_table_sql(table):
         for index in table.indexes:
             yield ('{};\n'.format(index.definition))
 
+    if table.owner:
+        yield ('ALTER TABLE {}.{} OWNER TO {}\n'.format(
+            quote_ident(table.schema.name),
+            quote_ident(table.name),
+            table.owner.name
+        ))
+
 
 def table_defining_components(table):
     for column_data in table.columns:

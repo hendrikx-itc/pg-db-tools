@@ -54,6 +54,8 @@ class PgDatabase:
     def load_from_db(conn):
         database = PgDatabase()
 
+        database.roles = PgRole.load_all_from_db(conn, database)
+
         database.schemas = PgSchema.load_all_from_db(conn, database)
 
         database.sequences = PgSequence.load_all_from_db(conn, database)
@@ -116,8 +118,6 @@ class PgDatabase:
         database.casts = PgCast.load_all_from_db(conn, database)
             
         database.dependencies = PgDepend.load_all_from_db(conn, database)
-
-        database.roles = PgRole.load_all_from_db(conn, database)
 
         PgIndex.load_all_from_db(conn, database)
 
@@ -240,8 +240,17 @@ class PgDatabase:
                 for object in schema.getall(name):
                     dependencies.append(object)
         return dependencies
-        
 
+    
+    def get_role_by_name(self, id):
+        for role in self.roles:
+            if role.name == id:
+                return role
+        else:
+            return None    
+
+
+            
 def validate_schema(data):
     with resource_stream(__name__, 'spec.schema') as schema_stream:
         with TextIOWrapper(schema_stream) as text_stream:
@@ -423,6 +432,7 @@ class PgTable(PgObject):
         self.inherits = None
         self.indexes = []
         self.object_type = 'table'
+        self.owner = None
 
     def __str__(self):
         return '"{}"."{}"'.format(self.schema.name, self.name)
@@ -431,12 +441,14 @@ class PgTable(PgObject):
         dependencies = [key.ref_table for key in self.foreign_keys]
         if self.inherits:
             dependencies.append(self.inherits)
+        if self.owner:
+            dependencies.append(self.owner)
         return dependencies
     
     @staticmethod
     def load_all_from_db(conn, database):
         query = (
-            'SELECT pg_class.oid, relnamespace, relname, description '
+            'SELECT pg_class.oid, relnamespace, relname, description, relowner '
             'FROM pg_class '
             'LEFT JOIN pg_description ON pg_description.objoid = pg_class.oid '
             'WHERE relkind = \'r\''
@@ -449,10 +461,12 @@ class PgTable(PgObject):
             rows = cursor.fetchall()
 
         def table_from_row(row):
-            oid, namespace_oid, name, description = row
+            oid, namespace_oid, name, description, owner = row
 
             pg_table = PgTable(database.schemas[namespace_oid], name, [])
 
+            pg_table.owner = database.roles.get(owner, None)
+            
             if description is not None:
                 pg_table.description = PgDescription(description)
 
@@ -539,6 +553,8 @@ class PgTable(PgObject):
 
         table.exclude = data.get('exclude')
 
+        table.owner = database.get_role_by_name(data.get('owner'))
+
         table.foreign_keys = [
             PgForeignKey.load(database, foreign_key)
             for foreign_key in data.get('foreign_keys', [])
@@ -598,6 +614,12 @@ class PgTable(PgObject):
                 attributes.append((
                     'indexes',
                     [index.to_json() for index in self.indexes]
+                ))
+
+            if self.owner is not None:
+                attributes.append((
+                    'owner',
+                    self.owner.name
                 ))
 
             return OrderedDict(attributes)
@@ -1445,9 +1467,9 @@ class PgRole(PgObject):
             (role, member) = row
             if role in roles and member in roles:
                 roles[member].membership.append(roles[role])
-
+                
         return roles
-            
+    
     
 data_type_mapping = {
     'name': 'name',
