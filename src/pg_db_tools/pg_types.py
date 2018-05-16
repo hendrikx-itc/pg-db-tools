@@ -11,7 +11,6 @@ from pkg_resources import resource_stream
 import yaml
 from jsonschema import validate
 
-
 DEFAULT_SCHEMA = 'public'
 SILENT_SCHEMAS = [DEFAULT_SCHEMA, 'pg_catalog']
 SKIPPED_SCHEMAS = [ 'pg_catalog', 'information_schema', 'pg_toast', 'pg_temp_1',
@@ -36,6 +35,7 @@ class PgDatabase:
         self.sequences = {}
         self.casts = {}
         self.rows = []
+        self.dependencies = []
         
     @staticmethod
     def load(data):
@@ -191,7 +191,7 @@ class PgDatabase:
                         # not able to find some lower-risk object, just take one at random
                         objects_included.append(objects_to_include[0])
                         objects_to_include = objects_to_include[1:]
-                
+
         return OrderedDict(
             objects=[
                 OrderedDict([(object.object_type, object.to_json())])
@@ -293,6 +293,10 @@ class PgObject:
 
     def dereference(self):
         return self
+
+    @property
+    def mapped_name(self):
+        return data_type_mapping.get(self.name, self.name)
 
     @property
     def argument_number(self):
@@ -760,11 +764,12 @@ class PgForeignKey:
 
     @staticmethod
     def load(database, data):
+        schema = database.get_schema_by_name(data['references']['table']['schema'])
         return PgForeignKey(
-            data['references']['table']['schema'],
+            schema,
             data['name'],
             data['columns'],
-            data['references']['table']['name'],
+            schema.get(data['references']['table']['name']),
             data['references']['columns'],
             data.get('on_update', None),
             data.get('on_delete', None)
@@ -864,7 +869,10 @@ class PgFunction(PgObject):
         return pg_function
 
     def ident(self):
-        return '{}.{}'.format(self.schema.name, self.name)
+        if self.schema.name in SILENT_SCHEMAS:
+            return self.name
+        else:
+            return '{}.{}'.format(self.schema.name, self.name)
 
     def to_json(self):
         attributes = [
@@ -1104,6 +1112,10 @@ class PgCast(PgObject):
         return [self.source, self.target, self.function]
 
     @property
+    def name(self):
+        return "{} -> {}".format(self.source.name, self.target.name)
+    
+    @property
     def schema(self):
         if self.source.schema.name in SKIPPED_SCHEMAS:
             if self.target.schema.name in SKIPPED_SCHEMAS:
@@ -1152,11 +1164,11 @@ class PgCast(PgObject):
         attributes = [
             ('source', OrderedDict([
                 ('schema', self.source.schema.name),
-                ('name', str(self.source).split(".")[-1])
+                ('name', self.source.mapped_name)
             ])),
             ('target', OrderedDict([
                 ('schema', self.target.schema.name),
-                ('name', str(self.target).split(".")[-1])
+                ('name', self.target.mapped_name)
             ])),
             ('function', OrderedDict([
                 ('schema', self.function.schema.name),
@@ -1196,7 +1208,10 @@ class PgSequence(PgObject):
         return pg_sequence
 
     def ident(self):
-        return '{}.{}'.format(self.schema.name, self.name)
+        if self.schema.name in SILENT_SCHEMAS:
+            return self.name
+        else:
+            return '{}.{}'.format(self.schema.name, self.name)
 
     def to_json(self):
         attributes = [
@@ -1253,10 +1268,13 @@ class PgAggregate(PgObject):
         self.object_type = 'aggregate'
 
     def ident(self):
-        return '{}.{}'.format(self.schema.name, self.name)
+        if self.schema.name in SILENT_SCHEMAS:
+            return self.name
+        else:
+            return '{}.{}'.format(self.schema.name, self.name)
 
     def get_dependencies(self):
-        return [argument.data_type for argument in self.arguments] + [self.sfunc.dereference()] + [self.stype.dereference()]
+        return [argument.data_type for argument in self.arguments] + [self.sfunc.dereference(), self.stype.dereference()]
 
     @staticmethod
     def load(database, data):
@@ -1265,9 +1283,15 @@ class PgAggregate(PgObject):
         arguments = [PgArgument.from_json(argument) for argument in data['arguments']]
 
         aggregate = PgAggregate(schema, data['name'], arguments)
-
-        aggregate.sfunc = PgFunctionRef(None, data['sfunc'])
-        aggregate.stype = PgTypeRef(None, data['stype'])
+        
+        if '.' in data['sfunc']:
+            aggregate.sfunc = PgFunctionRef(database.get_schema_by_name(data['sfunc'].split('.', 1)[0]), data['sfunc'].split('.', 1)[1])
+        else:
+            aggregate.sfunc = PgFunctionRef(database.get_schema_by_name(DEFAULT_SCHEMA), data['sfunc'])
+        if '.' in data['stype']:
+            aggregate.stype = PgFunctionRef(database.get_schema_by_name(data['stype'].split('.', 1)[0]), data['stype'].split('.', 1)[1])
+        else:
+            aggregate.stype = PgFunctionRef(database.get_schema_by_name(DEFAULT_SCHEMA), data['stype'])
 
         schema.aggregates.append(aggregate)
 
@@ -1429,7 +1453,9 @@ data_type_mapping = {
     'name': 'name',
     'int2': 'smallint',
     'int4': 'integer',
-    'int8': 'bigint'
+    'int8': 'bigint',
+    'timestamp': 'timestamp without time zone',
+    'timestamptz': 'timestamp with time zone',
 }
 
 
@@ -1439,13 +1465,13 @@ class PgTypeRef(PgObject):
         self.ref = ref
 
     def __str__(self):
-        if self.registry.name in SILENT_SCHEMAS:
+        if self.registry is None or self.registry.name in SILENT_SCHEMAS:
             return self.ref
         else:
             return '{}.{}'.format(self.registry.name, self.ref)
 
     def ident(self):
-        return self.ref
+        return str(self)
     
     def dereference(self):
         try:
@@ -1479,7 +1505,10 @@ class PgFunctionRef(PgObject):
         self.object_type = 'function'
 
     def ident(self):
-        return self.ref
+        if self.registry.name in SILENT_SCHEMAS:
+            return self.ref
+        else:
+            return '{}.{}'.format(self.registry.name, self.ref)
 
     def dereference(self):
         return self.registry.get(self.ref)
@@ -1550,9 +1579,13 @@ class PgType(PgObject):
     def to_json(self, short=False, showdefault=True):
         return str(self)
 
+    @property
+    def mapped_name(self):
+        return data_type_mapping.get(self.name, "{}[]".format(self.element_type.mapped_name) if self.element_type else self.name)
+
     def __str__(self):
-        if self.schema is None or self.schema.name == 'pg_catalog':
-            return data_type_mapping.get(self.name, "{}[]".format(str(self.element_type)) if self.element_type else self.name)
+        if self.schema is None or self.schema.name in SILENT_SCHEMAS:
+            return self.mapped_name
         else:
             if self.element_type is not None:
                 return "{}[]".format(str(self.element_type))
