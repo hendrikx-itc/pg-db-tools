@@ -1152,15 +1152,15 @@ class PgCast(PgObject):
         attributes = [
             ('source', OrderedDict([
                 ('schema', self.source.schema.name),
-                ('name', str(self.source))
+                ('name', str(self.source).split(".")[-1])
             ])),
             ('target', OrderedDict([
                 ('schema', self.target.schema.name),
-                ('name', str(self.target))
+                ('name', str(self.target).split(".")[-1])
             ])),
             ('function', OrderedDict([
                 ('schema', self.function.schema.name),
-                ('name', str(self.function))
+                ('name', self.function.name)
             ])),
             ('implicit', self.implicit)
             ]
@@ -1557,10 +1557,7 @@ class PgType(PgObject):
             if self.element_type is not None:
                 return "{}[]".format(str(self.element_type))
             else:
-                if self.schema is None:
-                    return self.name
-                else:
-                    return '{}.{}'.format(self.schema.name, self.name)
+                return '{}.{}'.format(self.schema.name, self.name)
 
 
 class PgCompositeType(PgObject):
