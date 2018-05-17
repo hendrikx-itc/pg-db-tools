@@ -320,7 +320,7 @@ class PgObject:
         
 
 class PgSchema(PgObject):
-    def __init__(self, name, database):
+    def __init__(self, name, database, comment=None):
         self.name = name
         self.types = []
         self.enum_types = []
@@ -334,6 +334,7 @@ class PgSchema(PgObject):
         self._database = database
         self.schema = self
         self.object_type = 'schema'
+        self.comment = comment
 
     @property
     def database(self):
@@ -342,7 +343,8 @@ class PgSchema(PgObject):
     @staticmethod
     def load_all_from_db(conn, database):
         query = (
-            "SELECT pg_namespace.oid, pg_namespace.nspname "
+            "SELECT pg_namespace.oid, pg_namespace.nspname, "
+            "obj_description(pg_namespace.oid, 'pg_namespace') "
             "FROM pg_namespace "
         )
 
@@ -354,15 +356,16 @@ class PgSchema(PgObject):
             rows = cursor.fetchall()
 
         return {
-            oid: PgSchema(name, database)
-            for oid, name in rows
+            oid: PgSchema(name, database, comment)
+            for oid, name, comment in rows
         }
 
     @staticmethod
     def load(database, data):
         return PgSchema(
             data['name'],
-            database
+            database,
+            data.get('comment')
         )
 
     def filter_objects(self, database_filter):
@@ -421,9 +424,10 @@ class PgSchema(PgObject):
         return [obj for obj in self.objects if obj.name == name]
 
     def to_json(self):
-        return OrderedDict([
-            ('name', self.name),
-        ])
+        arguments = [('name', self.name)]
+        if self.comment:
+            arguments.append(('comment', self.comment))
+        return OrderedDict(arguments)
 
 
 class PgTable(PgObject):

@@ -287,6 +287,12 @@ def render_schema_sql(pg_schema):
     ).format(
         ident = quote_ident(pg_schema.name)
     )
+    if pg_schema.comment:
+        yield (
+            'COMMENT ON SCHEMA {} IS {};'.format(
+                quote_ident(pg_schema.name),
+                quote_string(escape_string(pg_schema.comment))
+        ))
 
 
 sql_renderers = {
