@@ -6,7 +6,6 @@ from pg_db_tools.pg_types import PgEnumType, PgTable, PgFunction, PgView, \
     PgCompositeType, PgAggregate, PgSequence, PgSchema, PgRole, PgTrigger, \
     PgCast, PgSetting, PgRow
 
-
 def render_setting_sql(pg_setting):
     return [
         "DO $$ BEGIN",
@@ -55,10 +54,18 @@ def render_table_sql(table):
             yield ('{};\n'.format(index.definition))
 
     if table.owner:
-        yield ('ALTER TABLE {}.{} OWNER TO {}\n'.format(
+        yield ('ALTER TABLE {}.{} OWNER TO {};\n'.format(
             quote_ident(table.schema.name),
             quote_ident(table.name),
             table.owner.name
+        ))
+
+    for privilege in table.privs:
+        yield('GRANT {} ON TABLE {}.{} TO {};\n'.format(
+            privilege[1],
+            quote_ident(table.schema.name),
+            quote_ident(table.name),
+            privilege[0]
         ))
 
 

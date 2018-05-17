@@ -243,7 +243,7 @@ class PgDatabase:
 
     
     def get_role_by_name(self, id):
-        for role in self.roles:
+        for role in self.roles.values():
             if role.name == id:
                 return role
         else:
@@ -390,6 +390,13 @@ class PgSchema(PgObject):
                 return PgType(self, typename)
             else:
                 raise KeyError('Type not defined in schema {}: {}'.format(self.name, typename))
+
+    def get_table(self, name):
+        for table in self.tables:
+            if table.name == name:
+                return table
+        else:
+            return None
             
     @property
     def objects(self):
@@ -433,12 +440,13 @@ class PgTable(PgObject):
         self.indexes = []
         self.object_type = 'table'
         self.owner = None
+        self.privs = []
 
     def __str__(self):
         return '"{}"."{}"'.format(self.schema.name, self.name)
 
     def get_dependencies(self):
-        dependencies = [key.ref_table for key in self.foreign_keys]
+        dependencies = [key.ref_table for key in self.foreign_keys] + [self.database.get_role_by_name(priv[0]) for priv in self.privs]
         if self.inherits:
             dependencies.append(self.inherits)
         if self.owner:
@@ -476,6 +484,9 @@ class PgTable(PgObject):
             row[0]: table_from_row(row)
             for row in rows
         }
+
+        for table in tables.values():
+            table.schema.tables.append(table)
 
         query = (
             'SELECT attrelid, attname, atttypid, attnotnull, atthasdef, '
@@ -521,6 +532,21 @@ class PgTable(PgObject):
         for (child_oid, parent_oid) in inheritance:
             if child_oid in tables and parent_oid in tables:
                 tables[child_oid].inherits = tables[parent_oid]
+
+        query = (
+            "SELECT grantee, table_schema, table_name, privilege_type "
+            "FROM information_schema.role_table_grants "
+            "WHERE grantee <> 'postgres' AND grantee NOT LIKE 'pg_%'"
+        )
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query)
+            rows = cursor.fetchall()
+
+        for (rolename, schemaname, tablename, priv) in rows:
+            table = database.get_schema_by_name(schemaname).get_table(tablename)
+            if table:
+                table.privs.append((rolename, priv))
 
         return tables
 
@@ -568,6 +594,10 @@ class PgTable(PgObject):
         if 'indexes' in data:
             for index in data['indexes']:
                 table.indexes.append(PgIndex.load(table, index))
+
+        if 'privileges' in data:
+            for priv in data['privileges']:
+                table.privs.append((priv['role'], priv['privilege']))
 
         schema.tables.append(table)
 
@@ -621,6 +651,16 @@ class PgTable(PgObject):
                     'owner',
                     self.owner.name
                 ))
+        
+            if self.privs:
+                attributes.append((
+                    'privileges',
+                    [ OrderedDict([
+                        ('role', priv[0]),
+                        ('privilege', priv[1])
+                        ])
+                      for priv in self.privs
+                ]))
 
             return OrderedDict(attributes)
 
@@ -1919,8 +1959,8 @@ class PgIndex:
             ('name', self.name),
             ('definition', self.definition)
         ])
-    
-    
+
+
 class PgDepend:
     def __init__(self, dependent_obj, referenced_obj):
         self.dependent_obj = dependent_obj
@@ -1979,7 +2019,7 @@ object_loaders = {
 
 def load_object(database, object_data):
     object_type, object_data = next(iter(object_data.items()))
-    
+
     try:
         return object_loaders[object_type](database, object_data)
     except IndexError:
