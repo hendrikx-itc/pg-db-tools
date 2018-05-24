@@ -336,6 +336,8 @@ class SqlRenderer:
             yield '\n'
             yield sql_renderers[type(pg_object)](pg_object)
 
+        yield '\n'
+
         for schema in sorted(database.schemas.values(), key=lambda s: s.name):
             for table in schema.tables:
                 for index, foreign_key in enumerate(table.foreign_keys):
@@ -353,7 +355,7 @@ class SqlRenderer:
             'ALTER TABLE {schema_name}.{table_name} '
             'ADD CONSTRAINT {key_name} '
             'FOREIGN KEY ({columns}) '
-            'REFERENCES {ref_schema_name}.{ref_table_name} ({ref_columns}){on_update}{on_delete};'
+            'REFERENCES {ref_schema_name}.{ref_table_name} ({ref_columns}){on_update}{on_delete};\n'
         ).format(
             schema_name=quote_ident(schema.name),
             table_name=quote_ident(table.name),
