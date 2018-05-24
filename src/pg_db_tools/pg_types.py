@@ -43,10 +43,9 @@ class PgDatabase:
 
         database.extensions = data.get('extensions', [])
 
-        database.objects = [
-            load_object(database, object_data)
-            for object_data in data['objects']
-        ]
+        database.objects = []
+        for object_data in data['objects']:
+            database.objects.append(load_object(database, object_data))
         
         return database
 
@@ -246,6 +245,9 @@ class PgDatabase:
         for role in self.roles.values():
             if role.name == id:
                 return role
+        for role in self.objects:
+            if role.object_type == 'role' and role.name == id:
+                return role
         else:
             return None    
 
@@ -275,10 +277,10 @@ def load(infile):
 
     database.extensions = data.get('extensions', [])
 
-    database.objects = [
-        load_object(database, object_data)
-        for object_data in data['objects']
-    ]
+    database.objects = []
+
+    for object_data in data['objects']:
+        database.objects.append(load_object(database,object_data))
 
     return database
 
@@ -537,6 +539,21 @@ class PgTable(PgObject):
             if child_oid in tables and parent_oid in tables:
                 tables[child_oid].inherits = tables[parent_oid]
 
+        query = (
+            "SELECT schemaname, tablename, tableowner "
+            "FROM pg_tables"
+        )
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query)
+            rows = cursor.fetchall()
+
+        for (schemaname, tablename, ownername) in rows:
+            table = database.get_schema_by_name(schemaname).get_table(tablename)
+            owner = database.get_role_by_name(ownername)
+            if table and owner:
+                table.owner = owner
+                
         query = (
             "SELECT grantee, table_schema, table_name, privilege_type "
             "FROM information_schema.role_table_grants "
