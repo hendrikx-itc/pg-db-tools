@@ -8,7 +8,10 @@ node ('git') {
         def workspace = pwd()
 
         stage ('test') {
-            img.inside ('-v /etc/passwd:/etc/passwd -v /etc/group:/etc/group -u $(id -u):$(id -g)') {
+            def uid = sh(returnStdout: true, script: 'id -u')
+            def gid = sh(returnStdout: true, script: 'id -g')
+
+            img.inside ("-v /etc/passwd:/etc/passwd -v /etc/group:/etc/group -u ${uid}:${gid}") {
                 sh 'pip3 install .'
                 sh 'pip3 install unittest-xml-reporting pep8'
                 /* Run unit tests */
