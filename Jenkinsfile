@@ -5,7 +5,6 @@ node ('git') {
 
     stage ('build') {
         def img = docker.build 'pg-db-tools:snapshot'
-        def workspace = pwd()
 
         stage ('test') {
             def uid = sh(returnStdout: true, script: 'id -u').trim()
