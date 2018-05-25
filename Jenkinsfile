@@ -7,13 +7,7 @@ node ('git') {
         def img = docker.build 'pg-db-tools:snapshot'
 
         stage ('test') {
-            def uid = sh(returnStdout: true, script: 'id -u').trim()
-            def gid = sh(returnStdout: true, script: 'id -g').trim()
-
-            /* Show environment variables for debugging */
-            sh('env')
-
-            img.inside ("-v /etc/passwd:/etc/passwd -v /etc/group:/etc/group -u ${uid}:${gid}") {
+            img.inside ("-v /etc/passwd:/etc/passwd -v /etc/group:/etc/group") {
                 sh 'pip3 install .'
                 sh 'pip3 install unittest-xml-reporting pep8'
                 /* Run unit tests */
