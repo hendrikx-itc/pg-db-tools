@@ -8,8 +8,8 @@ node ('git') {
         def workspace = pwd()
 
         stage ('test') {
-            def uid = sh(returnStdout: true, script: 'id -u')
-            def gid = sh(returnStdout: true, script: 'id -g')
+            def uid = sh(returnStdout: true, script: 'id -u').trim()
+            def gid = sh(returnStdout: true, script: 'id -g').trim()
 
             img.inside ("-v /etc/passwd:/etc/passwd -v /etc/group:/etc/group -u ${uid}:${gid}") {
                 sh 'pip3 install .'
