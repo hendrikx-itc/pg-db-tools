@@ -60,12 +60,14 @@ def render_table_sql(table):
             table.owner.name
         ))
 
-    for privilege in table.privs:
+    grantees = set([privilege[0] for privilege in table.privs])
+
+    for grantee in grantees:
         yield('GRANT {} ON TABLE {}.{} TO {};\n'.format(
-            privilege[1],
+            ",".join([privilege[1] for privilege in table.privs if privilege[0] == grantee]),
             quote_ident(table.schema.name),
             quote_ident(table.name),
-            privilege[0]
+            grantee
         ))
 
 
