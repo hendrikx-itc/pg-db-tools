@@ -921,6 +921,7 @@ class PgFunction(PgObject):
         self.description = None
         self.volatility = 'volatile'
         self.strict = False
+        self.secdef = False
         self.object_type = 'function'
 
     def __str__(self):
@@ -947,6 +948,7 @@ class PgFunction(PgObject):
         pg_function.returns_set = data.get('returns_set', False)
         pg_function.volatility = data.get('volatility', 'volatile')
         pg_function.strict = data.get('strict', False)
+        pg_function.secdef = data.get('secdef', False)
 
         schema.functions.append(pg_function)
 
@@ -972,6 +974,7 @@ class PgFunction(PgObject):
             ('language', self.language),
             ('volatility', self.volatility),
             ('strict', self.strict),
+            ('secdef', self.secdef),
             ('arguments', [
                 argument.to_json()
                 for argument
@@ -994,7 +997,7 @@ class PgFunction(PgObject):
             'SELECT pg_proc.oid, pronamespace, proname, prorettype, '
             'proargtypes, proallargtypes, proargmodes, proargnames, '
             'pg_language.lanname, proretset, prosrc, provolatile, '
-            'proisstrict, '
+            'proisstrict, prosecdef, '
             'pg_get_expr(proargdefaults, 0), ' 
             'description '
             'FROM pg_proc '
@@ -1014,7 +1017,7 @@ class PgFunction(PgObject):
             (
                 oid, namespace_oid, name, return_type_oid, arg_type_oids_str,
                 all_arg_type_oids, arg_modes, arg_names, language, returns_set,
-                src, volatility, strict, defaults, description
+                src, volatility, strict, secdef, defaults, description
             ) = row
 
             if arg_type_oids_str:
@@ -1056,6 +1059,7 @@ class PgFunction(PgObject):
             except KeyError:
                 pg_function.volatility = 'volatile'
             pg_function.strict = strict
+            pg_function.secdef = secdef
 
             if description is not None:
                 pg_function.description = PgDescription(description)
