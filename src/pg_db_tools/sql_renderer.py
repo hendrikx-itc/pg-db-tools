@@ -178,11 +178,11 @@ def render_trigger_sql(pg_trigger):
 def render_sequence_sql(pg_sequence):
     return [
         'CREATE SEQUENCE {}.{}'.format(pg_sequence.schema.name, pg_sequence.name),
-        'START WITH {}'.format(pg_sequence.start_value),
-        'INCREMENT BY {}'.format(pg_sequence.increment),
-        'NO MINVALUE' if pg_sequence.minimum_value is None else 'MINVALUE {}'.format(pg_sequence.minimum_value),
-        'NO MAXVALUE' if pg_sequence.maximum_value is None else 'MAXVALUE {}'.format(pg_sequence.maximum_value),
-        'CACHE 1;'
+        '  START WITH {}'.format(pg_sequence.start_value),
+        '  INCREMENT BY {}'.format(pg_sequence.increment),
+        '  NO MINVALUE' if pg_sequence.minimum_value is None else 'MINVALUE {}'.format(pg_sequence.minimum_value),
+        '  NO MAXVALUE' if pg_sequence.maximum_value is None else 'MAXVALUE {}'.format(pg_sequence.maximum_value),
+        '  CACHE 1;'
     ]    
 
 
@@ -216,10 +216,10 @@ def render_role_sql(pg_role):
                  ]
     return [
         "DO\n$$\nBEGIN",
-        "IF NOT EXISTS(SELECT * FROM pg_roles WHERE rolname = '{}') THEN".format(pg_role.name),
-        "CREATE ROLE {}".format(pg_role.name),
-        " ".join(attribute for attribute in attributes),
-        "END IF;\nEND\n$$;",
+        "  IF NOT EXISTS(SELECT * FROM pg_roles WHERE rolname = '{}') THEN".format(pg_role.name),
+        "    CREATE ROLE {}".format(pg_role.name),
+        "      " + " ".join(attribute for attribute in attributes),
+        "  END IF;\nEND\n$$;",
         ] +\
         [ "\nGRANT {} TO {};".format(membership.name, pg_role.name) for membership in pg_role.membership ]
 
@@ -258,9 +258,13 @@ def render_enum_type_sql(pg_enum_type):
 
 def render_aggregate_sql(pg_aggregate):
     properties = [
-        '    SFUNC = {}'.format(pg_aggregate.sfunc.ident()),
-        '    STYPE = {}'.format(pg_aggregate.stype.ident())
+        '    sfunc = {}'.format(pg_aggregate.sfunc.ident()),
+        '    stype = {}'.format(pg_aggregate.stype.ident())
     ]
+
+    if len(pg_aggregate.arguments) == 1:
+        properties.append('    basetype = {}'.format(pg_aggregate.arguments[0].data_type.ident()))
+
 
     yield (
         'CREATE AGGREGATE {ident} ({arguments}) (\n'
