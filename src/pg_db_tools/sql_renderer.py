@@ -169,9 +169,9 @@ def render_trigger_sql(pg_trigger):
     when = "INSTEAD OF" if pg_trigger.when == 'instead' else pg_trigger.when.upper()
     return [
         'CREATE TRIGGER {}'.format(pg_trigger.name),
-        '{} {} ON {}'.format(when, " OR ".join(pg_trigger.events).upper(), pg_trigger.table),
-        'FOR EACH {}'.format(pg_trigger.affecteach.upper()),
-        'EXECUTE PROCEDURE {}();'.format(pg_trigger.function)
+        '  {} {} ON {}'.format(when, " OR ".join(pg_trigger.events).upper(), pg_trigger.table),
+        '  FOR EACH {}'.format(pg_trigger.affecteach.upper()),
+        '  EXECUTE PROCEDURE {}();'.format(pg_trigger.function)
     ]
 
 
@@ -188,7 +188,7 @@ def render_sequence_sql(pg_sequence):
 
 def render_cast_sql(pg_cast):
     return [
-        'CREATE CAST ({} AS {}) WITH FUNCTION {}({}){};'.format(
+        'CREATE CAST ({} AS {})\n  WITH FUNCTION {}({}){};'.format(
             pg_cast.source,
             pg_cast.target,
             pg_cast.function,
@@ -355,10 +355,10 @@ class SqlRenderer:
         except AttributeError:
             key_name='{}_{}_fk_{}'.format(schema.name, table.name, index)
         return [(
-            'ALTER TABLE {schema_name}.{table_name} '
-            'ADD CONSTRAINT {key_name} '
-            'FOREIGN KEY ({columns}) '
-            'REFERENCES {ref_schema_name}.{ref_table_name} ({ref_columns}){on_update}{on_delete};\n'
+            'ALTER TABLE {schema_name}.{table_name}\n'
+            '  ADD CONSTRAINT {key_name}\n'
+            '  FOREIGN KEY ({columns})\n'
+            '  REFERENCES {ref_schema_name}.{ref_table_name} ({ref_columns}){on_update}{on_delete};\n'
         ).format(
             schema_name=quote_ident(schema.name),
             table_name=quote_ident(table.name),
