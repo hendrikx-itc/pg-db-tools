@@ -262,10 +262,6 @@ def render_aggregate_sql(pg_aggregate):
         '    stype = {}'.format(pg_aggregate.stype.ident())
     ]
 
-    if len(pg_aggregate.arguments) == 1:
-        properties.append('    basetype = {}'.format(pg_aggregate.arguments[0].data_type.ident()))
-
-
     yield (
         'CREATE AGGREGATE {ident} ({arguments}) (\n'
         '{properties}\n'
