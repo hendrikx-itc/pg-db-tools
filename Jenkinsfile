@@ -6,9 +6,8 @@ pipeline {
             steps {
                 def img = docker.build 'pg-db-tools:snapshot'
 
-                stage ('test') {
-                    img.inside ("-v /etc/passwd:/etc/passwd -v /etc/group:/etc/group") {
-                        sh script: """
+                img.inside ("-v /etc/passwd:/etc/passwd -v /etc/group:/etc/group") {
+                    sh script: """
 virtualenv -p python3 venv
 . venv/bin/activate
 pip install .
@@ -17,7 +16,6 @@ rm -rf results
 mkdir results
 pycodestyle src > results/pycodestyle.log || echo "ok"
 """
-                    }
                 }
             }
 
