@@ -720,7 +720,7 @@ class PgTable(PgObject):
                                                 if priv[0] == grantee]))
                         ])
                      for grantee in grantees
-                ]))
+                    ]))
 
             return OrderedDict(attributes)
 

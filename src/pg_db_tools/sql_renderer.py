@@ -394,7 +394,7 @@ class SqlRenderer:
             ref_columns=', '.join(foreign_key.ref_columns),
             on_update=' ON UPDATE {}'.format(foreign_key.on_update.upper())
             if foreign_key.on_update else '',
-            on_delete=' ON DELETE {}'.format(foreign_key.on_delete.upper()) 
+            on_delete=' ON DELETE {}'.format(foreign_key.on_delete.upper())
             if foreign_key.on_delete else '',
         )]
 
