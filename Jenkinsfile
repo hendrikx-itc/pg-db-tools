@@ -10,7 +10,7 @@ node ('git') {
             img.inside ("-v /etc/passwd:/etc/passwd -v /etc/group:/etc/group") {
                 sh script: """
 virtualenv -p python3 venv
-source venv/bin/activate
+. venv/bin/activate
 pip install .
 pip install unittest-xml-reporting pep8
 pep8 . > pep8.log || echo "ok"
