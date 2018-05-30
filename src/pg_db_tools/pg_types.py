@@ -714,13 +714,15 @@ class PgTable(PgObject):
                 grantees = set([priv[0] for priv in self.privs])
                 attributes.append((
                     'privileges',
-                    [OrderedDict([
+                    [
+                        OrderedDict([
                         ('role', grantee),
                         ('privilege', ",".join([priv[1] for priv in self.privs
                                                 if priv[0] == grantee]))
                         ])
                      for grantee in grantees
-                    ]))
+                    ]
+                ))
 
             return OrderedDict(attributes)
 
