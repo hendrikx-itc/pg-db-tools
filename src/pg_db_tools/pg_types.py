@@ -132,8 +132,7 @@ class PgDatabase:
                             list(database.aggregates.values()) +
                             list(database.views.values()) +
                             list(database.triggers.values()) +
-                            list(database.casts.values())
-        )
+                            list(database.casts.values()))
 
         return database
 
@@ -189,7 +188,8 @@ class PgDatabase:
                 # problematic
                 for object in objects_to_include:
                     blockingobjects = self.blockers_from_dependencies(object)
-                    if not [x for x in blockingobjects if x in objects_include]\
+                    if not [x for x in blockingobjects
+                            if x in objects_include]\
                        and not object.is_blocked(objects_to_include,
                                                  samenameblocks=False):
                         objects_included.append(object)
@@ -252,7 +252,7 @@ class PgDatabase:
                         dependencies.append(object)
             remaining_text = remaining_text[loc:]
         for (schema_name, name) in\
-            self.dependencyre_without_arguments.findall(str(text)):
+                self.dependencyre_without_arguments.findall(str(text)):
             schema = self.get_schema_by_name(schema_name)
             if schema:
                 for object in schema.getall(name):
@@ -549,7 +549,8 @@ class PgTable(PgObject):
                 table.columns = [
                     PgColumn.load(database,
                                   {'name': column_name,
-                                   'data_type': database.types[column_type_oid],
+                                   'data_type': database.types[
+                                       column_type_oid],
                                    'nullable': not column_notnull,
                                    'hasdef': column_hasdef,
                                    'default': column_default_human})
@@ -718,8 +719,8 @@ class PgTable(PgObject):
                         ('privilege', ",".join([priv[1] for priv in self.privs
                                                 if priv[0] == grantee]))
                         ])
-                      for grantee in grantees
-                    ]))
+                     for grantee in grantees
+                ]))
 
             return OrderedDict(attributes)
 
@@ -1093,7 +1094,7 @@ class PgFunction(PgObject):
             defaults = [None] * (len(arguments) - len(defaults)) + defaults
             for (argument, default) in zip(arguments, defaults):
                 argument.default = default
-   
+
             pg_function = PgFunction(
                 database.schemas[namespace_oid], name, arguments,
                 database.types[return_type_oid]
@@ -1429,7 +1430,7 @@ class PgAggregate(PgObject):
                      for argument in data['arguments']]
 
         aggregate = PgAggregate(schema, data['name'], arguments)
-        
+
         if '.' in data['sfunc']:
             aggregate.sfunc = PgFunctionRef(
                 database.get_schema_by_name(data['sfunc'].split('.', 1)[0]),
@@ -1535,7 +1536,7 @@ class PgRole(PgObject):
         self.login = login
         self.membership = membership or []
         self.schema = self  # a hack because roles don't have a schema,
-                            # but some functions assume presence
+        #                     but some functions assume presence
         self.object_type = 'role'
 
     def ident(self):

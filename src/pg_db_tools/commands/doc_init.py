@@ -42,7 +42,8 @@ def copy_resource_tree(target_dir, package_name, resource_root,
             raise
 
     for resource in resource_listdir(package_name,
-                                     os.path.join(resource_root, resource_dir)):
+                                     os.path.join(resource_root,
+                                                  resource_dir)):
         resource_path = os.path.join(resource_root, resource_dir, resource)
 
         if resource_isdir(package_name, resource_path):

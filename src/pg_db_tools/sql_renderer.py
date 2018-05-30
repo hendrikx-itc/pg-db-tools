@@ -191,9 +191,9 @@ def render_sequence_sql(pg_sequence):
                                        pg_sequence.name),
         '  START WITH {}'.format(pg_sequence.start_value),
         '  INCREMENT BY {}'.format(pg_sequence.increment),
-        '  NO MINVALUE' if pg_sequence.minimum_value is None\
+        '  NO MINVALUE' if pg_sequence.minimum_value is None
         else 'MINVALUE {}'.format(pg_sequence.minimum_value),
-        '  NO MAXVALUE' if pg_sequence.maximum_value is None\
+        '  NO MAXVALUE' if pg_sequence.maximum_value is None
         else 'MAXVALUE {}'.format(pg_sequence.maximum_value),
         '  CACHE 1;'
     ]
@@ -392,9 +392,9 @@ class SqlRenderer:
                 foreign_key.get_name(foreign_key.ref_table)
             ),
             ref_columns=', '.join(foreign_key.ref_columns),
-            on_update = ' ON UPDATE {}'.format(foreign_key.on_update.upper())\
+            on_update=' ON UPDATE {}'.format(foreign_key.on_update.upper())
             if foreign_key.on_update else '',
-            on_delete = ' ON DELETE {}'.format(foreign_key.on_delete.upper())\
+            on_delete=' ON DELETE {}'.format(foreign_key.on_delete.upper()) 
             if foreign_key.on_delete else '',
         )]
 
