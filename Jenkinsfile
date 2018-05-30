@@ -13,7 +13,7 @@ virtualenv -p python3 venv
 . venv/bin/activate
 pip install .
 pip install unittest-xml-reporting pep8
-pep8 . > pep8.log || echo "ok"
+pep8 src > pep8.log || echo "ok"
 """
             }
 
