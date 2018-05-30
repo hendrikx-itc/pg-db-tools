@@ -21,7 +21,8 @@ def render_rst_directory(out_dir, database):
         )
 
         index_file.writelines(
-            '    {}\n'.format(schema.name) for schema in database.schemas.values()
+            '    {}\n'.format(schema.name)
+            for schema in database.schemas.values()
         )
 
 
@@ -62,6 +63,7 @@ def render_rst_schema(schema):
 
         for pg_sequence in schema.sequences:
             yield render_sequence(pg_sequences)
+
 
 header_level_symbol = {
     1: '=',

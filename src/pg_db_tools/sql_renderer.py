@@ -6,10 +6,12 @@ from pg_db_tools.pg_types import PgEnumType, PgTable, PgFunction, PgView, \
     PgCompositeType, PgAggregate, PgSequence, PgSchema, PgRole, PgTrigger, \
     PgCast, PgSetting, PgRow
 
+
 def render_setting_sql(pg_setting):
     return [
         "DO $$ BEGIN",
-        "EXECUTE 'ALTER DATABASE ' || current_database() || ' SET {} TO {}';".format(pg_setting.name, pg_setting.value),
+        "EXECUTE 'ALTER DATABASE ' || current_database() || ' "
+        "SET {} TO {}';".format(pg_setting.name, pg_setting.value),
         "END; $$;\n",
         "SET {} TO {};".format(pg_setting.name, pg_setting.value)
         ]
@@ -64,7 +66,9 @@ def render_table_sql(table):
 
     for grantee in grantees:
         yield('GRANT {} ON TABLE {}.{} TO {};\n'.format(
-            ",".join([privilege[1] for privilege in table.privs if privilege[0] == grantee]),
+            ",".join([privilege[1]
+                      for privilege in table.privs
+                      if privilege[0] == grantee]),
             quote_ident(table.schema.name),
             quote_ident(table.name),
             grantee
@@ -140,7 +144,9 @@ def render_function_sql(pg_function):
     ]
 
     if table_arguments:
-        returns_part += 'TABLE({})'.format(', '.join(render_argument(argument) for argument in table_arguments))
+        returns_part += 'TABLE({})'.format(
+            ', '.join(render_argument(argument)
+                      for argument in table_arguments))
     else:
         if pg_function.returns_set:
             returns_part += 'SETOF '
@@ -150,7 +156,9 @@ def render_function_sql(pg_function):
     return [
         'CREATE FUNCTION "{}"."{}"({})'.format(
             pg_function.schema.name, pg_function.name,
-            ', '.join(render_argument(argument) for argument in pg_function.arguments if argument.mode in ('i', 'o', 'b', 'v'))
+            ', '.join(render_argument(argument)
+                      for argument in pg_function.arguments
+                      if argument.mode in ('i', 'o', 'b', 'v'))
         ),
         returns_part,
         'AS $function$' if '$$' in str(pg_function.src) else 'AS $$',
@@ -166,10 +174,12 @@ def render_function_sql(pg_function):
 
 
 def render_trigger_sql(pg_trigger):
-    when = "INSTEAD OF" if pg_trigger.when == 'instead' else pg_trigger.when.upper()
+    when = "INSTEAD OF" if pg_trigger.when == 'instead'\
+           else pg_trigger.when.upper()
     return [
         'CREATE TRIGGER {}'.format(pg_trigger.name),
-        '  {} {} ON {}'.format(when, " OR ".join(pg_trigger.events).upper(), pg_trigger.table),
+        '  {} {} ON {}'.format(when, " OR ".join(pg_trigger.events).upper(),
+                               pg_trigger.table),
         '  FOR EACH {}'.format(pg_trigger.affecteach.upper()),
         '  EXECUTE PROCEDURE {}();'.format(pg_trigger.function)
     ]
@@ -177,13 +187,16 @@ def render_trigger_sql(pg_trigger):
 
 def render_sequence_sql(pg_sequence):
     return [
-        'CREATE SEQUENCE {}.{}'.format(pg_sequence.schema.name, pg_sequence.name),
+        'CREATE SEQUENCE {}.{}'.format(pg_sequence.schema.name,
+                                       pg_sequence.name),
         '  START WITH {}'.format(pg_sequence.start_value),
         '  INCREMENT BY {}'.format(pg_sequence.increment),
-        '  NO MINVALUE' if pg_sequence.minimum_value is None else 'MINVALUE {}'.format(pg_sequence.minimum_value),
-        '  NO MAXVALUE' if pg_sequence.maximum_value is None else 'MAXVALUE {}'.format(pg_sequence.maximum_value),
+        '  NO MINVALUE' if pg_sequence.minimum_value is None\
+        else 'MINVALUE {}'.format(pg_sequence.minimum_value),
+        '  NO MAXVALUE' if pg_sequence.maximum_value is None\
+        else 'MAXVALUE {}'.format(pg_sequence.maximum_value),
         '  CACHE 1;'
-    ]    
+    ]
 
 
 def render_cast_sql(pg_cast):
@@ -216,12 +229,14 @@ def render_role_sql(pg_role):
                  ]
     return [
         "DO\n$$\nBEGIN",
-        "  IF NOT EXISTS(SELECT * FROM pg_roles WHERE rolname = '{}') THEN".format(pg_role.name),
+        "  IF NOT EXISTS(SELECT * FROM pg_roles "
+        "WHERE rolname = '{}') THEN".format(pg_role.name),
         "    CREATE ROLE {}".format(pg_role.name),
         "      " + " ".join(attribute for attribute in attributes),
         "  END IF;\nEND\n$$;",
         ] +\
-        [ "\nGRANT {} TO {};".format(membership.name, pg_role.name) for membership in pg_role.membership ]
+        ["\nGRANT {} TO {};".format(membership.name, pg_role.name)
+         for membership in pg_role.membership]
 
 
 def render_view_sql(pg_view):
@@ -237,7 +252,8 @@ def render_composite_type_sql(pg_composite_type):
         '{columns_part}\n'
         ');\n'
     ).format(
-        ident='{}.{}'.format(quote_ident(pg_composite_type.schema.name), quote_ident(pg_composite_type.name)),
+        ident='{}.{}'.format(quote_ident(pg_composite_type.schema.name),
+                             quote_ident(pg_composite_type.name)),
         columns_part=',\n'.join(
             '  {}'.format(render_composite_type_column_definition(column_data))
             for column_data in pg_composite_type.columns
@@ -251,8 +267,10 @@ def render_enum_type_sql(pg_enum_type):
         '{labels_part}\n'
         ');\n'
     ).format(
-        ident='{}.{}'.format(quote_ident(pg_enum_type.schema.name), quote_ident(pg_enum_type.name)),
-        labels_part=',\n'.join('  {}'.format(quote_string(label)) for label in pg_enum_type.labels)
+        ident='{}.{}'.format(quote_ident(pg_enum_type.schema.name),
+                             quote_ident(pg_enum_type.name)),
+        labels_part=',\n'.join('  {}'.format(quote_string(label))
+                               for label in pg_enum_type.labels)
     )
 
 
@@ -268,7 +286,8 @@ def render_aggregate_sql(pg_aggregate):
         ');\n'
     ).format(
         ident=pg_aggregate.ident(),
-        arguments=', '.join(render_argument(argument) for argument in pg_aggregate.arguments),
+        arguments=', '.join(render_argument(argument)
+                            for argument in pg_aggregate.arguments),
         properties=',\n'.join(properties)
     )
 
@@ -280,7 +299,8 @@ def render_argument(pg_argument):
         return '{} {}{}'.format(
             quote_ident(pg_argument.name),
             str(pg_argument.data_type.ident()),
-            '' if pg_argument.default is None else ' DEFAULT {}'.format(pg_argument.default)
+            '' if pg_argument.default is None
+            else ' DEFAULT {}'.format(pg_argument.default)
         )
 
 
@@ -288,14 +308,14 @@ def render_schema_sql(pg_schema):
     yield (
         'CREATE SCHEMA IF NOT EXISTS {ident};'
     ).format(
-        ident = quote_ident(pg_schema.name)
+        ident=quote_ident(pg_schema.name)
     )
     if pg_schema.comment:
         yield (
             'COMMENT ON SCHEMA {} IS {};'.format(
                 quote_ident(pg_schema.name),
                 quote_string(escape_string(pg_schema.comment))
-        ))
+            ))
 
 
 sql_renderers = {
@@ -351,14 +371,15 @@ class SqlRenderer:
     @staticmethod
     def render_foreign_key(index, schema, table, foreign_key):
         try:
-            key_name=foreign_key.name
+            key_name = foreign_key.name
         except AttributeError:
-            key_name='{}_{}_fk_{}'.format(schema.name, table.name, index)
+            key_name = '{}_{}_fk_{}'.format(schema.name, table.name, index)
         return [(
             'ALTER TABLE {schema_name}.{table_name}\n'
             '  ADD CONSTRAINT {key_name}\n'
             '  FOREIGN KEY ({columns})\n'
-            '  REFERENCES {ref_schema_name}.{ref_table_name} ({ref_columns}){on_update}{on_delete};\n'
+            '  REFERENCES {ref_schema_name}.{ref_table_name} '
+            '({ref_columns}){on_update}{on_delete};\n'
         ).format(
             schema_name=quote_ident(schema.name),
             table_name=quote_ident(table.name),
@@ -371,8 +392,10 @@ class SqlRenderer:
                 foreign_key.get_name(foreign_key.ref_table)
             ),
             ref_columns=', '.join(foreign_key.ref_columns),
-            on_update = ' ON UPDATE {}'.format(foreign_key.on_update.upper()) if foreign_key.on_update else '',
-            on_delete = ' ON DELETE {}'.format(foreign_key.on_delete.upper()) if foreign_key.on_delete else '',
+            on_update = ' ON UPDATE {}'.format(foreign_key.on_update.upper())\
+            if foreign_key.on_update else '',
+            on_delete = ' ON DELETE {}'.format(foreign_key.on_delete.upper())\
+            if foreign_key.on_delete else '',
         )]
 
     def create_extension_statements(self, database):

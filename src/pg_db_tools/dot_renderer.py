@@ -1,5 +1,3 @@
-
-
 FOREIGN_KEY_EDGE_CONNECT_PORT = 1
 FOREIGN_KEY_EDGE_CONNECT_NODE = 2
 
@@ -99,7 +97,8 @@ class DotRenderer:
 
     def render_table_html_label(self, table):
         return (
-            '<<table border="1" bgcolor="white" cellspacing="0" cellborder="0">\n'
+            '<<table border="1" bgcolor="white" cellspacing="0" '
+            'cellborder="0">\n'
             '  <tr><td colspan="3" border="1" sides="B">{name}</td></tr>\n'
             '{column_rows}\n'
             '</table>>\n'
@@ -110,7 +109,8 @@ class DotRenderer:
                 '<td port="{col_name}" align="left">{col_name}</td>'
                 '<td align="left">{data_type}</td></tr>'.format(
                     attrs='PK' if (
-                        table.primary_key and c.name in table.primary_key.columns
+                        table.primary_key and
+                        c.name in table.primary_key.columns
                     ) else '',
                     col_name=c.name,
                     data_type=c.data_type
