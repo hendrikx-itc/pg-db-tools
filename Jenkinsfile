@@ -2,10 +2,6 @@ pipeline {
     agent any
 
     stages {
-        stage ('checkout') {
-            checkout scm
-        }
-
         stage ('build') {
             steps {
                 def img = docker.build 'pg-db-tools:snapshot'
