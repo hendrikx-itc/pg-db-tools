@@ -13,7 +13,9 @@ virtualenv -p python3 venv
 . venv/bin/activate
 pip install .
 pip install unittest-xml-reporting pycodestyle
-pycodestyle src > pycodestyle.log || echo "ok"
+rm -rf results
+mkdir results
+pycodestyle src > results/pycodestyle.log || echo "ok"
 """
             }
 
@@ -21,7 +23,7 @@ pycodestyle src > pycodestyle.log || echo "ok"
         }
 
         stage ('static-checks') {
-            step([$class: 'WarningsPublisher', parserConfigurations: [[parserName: 'Pep8', pattern: 'pycodestyle.log']]])
+            step([$class: 'WarningsPublisher', parserConfigurations: [[parserName: 'Pep8', pattern: 'results/*.log']]])
         }
     }
 }
