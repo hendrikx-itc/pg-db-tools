@@ -53,7 +53,13 @@ def render_table_sql(table):
 
     if table.indexes:
         for index in table.indexes:
-            yield ('{};\n'.format(index.definition))
+            yield ('CREATE{} INDEX {} ON {}.{} USING {};\n'.format(
+                " UNIQUE" if index.unique else "",
+                index.name,
+                quote_ident(table.schema.name),
+                quote_ident(table.name),
+                index.definition)
+            )
 
     if table.owner:
         yield ('ALTER TABLE {}.{} OWNER TO {};\n'.format(

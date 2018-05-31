@@ -2065,11 +2065,12 @@ class PgRow(PgObject):
 
 
 class PgIndex:
-    def __init__(self, table, name, definition):
+    def __init__(self, table, name, definition, unique=False):
         self.table = table
         self.name = name
         self.definition = definition
         self.schema = table.schema
+        self.unique = unique
 
     @staticmethod
     def load_all_from_db(conn, database):
@@ -2082,22 +2083,28 @@ class PgIndex:
             cursor.execute(query)
             rows = cursor.fetchall()
 
+
         for (schemaname, tablename, name, definition) in rows:
             if name.endswith('_pkey'):
                 continue
             table = database.get_schema_by_name(schemaname).get_table(
                 tablename)
-            table.indexes.append(PgIndex(table, name, definition))
+            table.indexes.append(PgIndex(
+                table, name,
+                definition.split("USING")[-1].strip(),
+                " UNIQUE " in definition))
 
         return OrderedDict()
 
     @staticmethod
     def load(table, data):
-        return PgIndex(table, data['name'], data['definition'])
+        return PgIndex(table, data['name'],
+                       data['definition'], data.get('unique', False))
 
     def to_json(self):
         return OrderedDict([
             ('name', self.name),
+            ('unique', self.unique),
             ('definition', self.definition)
         ])
 
