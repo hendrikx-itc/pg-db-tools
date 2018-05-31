@@ -2083,7 +2083,6 @@ class PgIndex:
             cursor.execute(query)
             rows = cursor.fetchall()
 
-
         for (schemaname, tablename, name, definition) in rows:
             if name.endswith('_pkey'):
                 continue
