@@ -38,6 +38,7 @@ class PgDatabase:
         self.casts = {}
         self.rows = []
         self.dependencies = []
+        self.queries = []
 
     @staticmethod
     def load(data):
@@ -120,6 +121,9 @@ class PgDatabase:
 
         database.dependencies = PgDepend.load_all_from_db(conn, database)
 
+        database.rows = PgRow.load_all_from_db(conn, database)
+        # Warning! having many rows means the process will be extremely slow!
+
         PgIndex.load_all_from_db(conn, database)
 
         database.objects = (list(database.schemas.values()) +
@@ -132,8 +136,9 @@ class PgDatabase:
                             list(database.aggregates.values()) +
                             list(database.views.values()) +
                             list(database.triggers.values()) +
-                            list(database.casts.values()))
-
+                            list(database.casts.values()) +
+                            database.rows)
+        
         return database
 
     def register_schema(self, name):
@@ -1375,9 +1380,9 @@ class PgSequence(PgObject):
     @staticmethod
     def load_all_from_db(conn, database):
         query = (
-            'SELECT sequence_schema, sequence_name, start_value,'
-            'minimum_value, maximum_value, increment '
-            'FROM information_schema.sequences'
+            'SELECT schemaname, sequencename, start_value, '
+            'min_value, max_value, increment_by, last_value '
+            'FROM pg_sequences'
         )
 
         with closing(conn.cursor()) as cursor:
@@ -1387,12 +1392,14 @@ class PgSequence(PgObject):
 
         def sequence_from_row(row):
             (schema, name, start_value, minimum_value,
-             maximum_value, increment) = row
-            minimum_value = str(minimum_value)
-            maximum_value = str(maximum_value)
-            if minimum_value == "1":
+             maximum_value, increment, last_value) = row
+            minimum_value = int(minimum_value)
+            maximum_value = int(maximum_value)
+            if last_value:
+                start_value = max(start_value, last_value+1)
+            if minimum_value == 1:
                 minimum_value = None
-            if maximum_value in ["2147483647",  "9223372036854775807"]:
+            if maximum_value in [2147483647, 9223372036854775807]:
                 maximum_value = None
 
             return PgSequence(
@@ -1989,49 +1996,69 @@ class PgSetting(PgObject):
 
 
 class PgRow(PgObject):
-    def __init__(self, table):
+    def __init__(self, table, values=None):
         self.table = table
-        self.values = OrderedDict()
+        self.values = values or OrderedDict()
         self.schema = table.schema
+        self.object_type = 'row'
 
     def get_dependencies(self):
         return [self.table]
 
+    @property
+    def name(self):
+        return "{} {}".format(
+            self.table.name,
+            " ".join(str(x) for x in self.values.values())
+        )
+
     @staticmethod
     def load_all_from_db(conn, database):
-        raise NotImplementedError
+        rows = []
+        for table in database.tables.values():
+            rows += PgRow.load_all_for_table_from_db(conn, database,table)
+        return rows
+
+    @staticmethod
+    def load_all_for_table_from_db(conn, database, table):
+        columns = [column.name for column in table.columns]
+        query = (
+            'SELECT "{}" FROM {}'.format('", "'.join(columns), table)
+        )
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query)
+            rows = cursor.fetchall()
+
+        def row_to_pgrow(row):
+            pgrow = PgRow(table)
+            for (column, value) in zip(columns, row):
+                pgrow.values[column] = value
+            return pgrow
+
+        rows = [row_to_pgrow(row) for row in rows]
+        return rows
 
     @staticmethod
     def load(database, data):
         pgrow = PgRow(database.get_schema_by_name(data['table']['schema']).get(
             data['table']['name']))
         for value in data['values']:
-            pgrow.values[value['column']] = str(value['value']).lower()
-            if value.get('string', False):
-                pgrow.values[value['column']] = "'{}'".format(
-                    pgrow.values[value['column']])
+            pgrow.values[value['column']] = value['value']
         return pgrow
 
     def to_json(self):
-        # WARNING: This function has not been tested yet!!!
         values = []
         for column in self.values:
-            if values[column].startswith("'") and values[column].endswith("'"):
-                values.append(OrderedDict([
-                    ('column', column),
-                    ('value', values[column][1:-1])
-                    ('string', True)
-                ]))
-            else:
-                values.append(OrderedDict([
-                    ('column', column),
-                    ('value', values[column])
-                ]))
+            values.append(OrderedDict([
+                ('column', column),
+                ('value', self.values[column])
+            ]))
         attributes = [
             ('table', OrderedDict([
-                ('name', self.table.name),
-                ('schema', self.table.schema.name)
-            ]))
+                ('schema', self.table.schema.name),
+                ('name', self.table.name)
+            ])),
             ('values', values)
             ]
         return OrderedDict(attributes)
@@ -2114,6 +2141,63 @@ class PgDepend:
         return [row_to_pg_depend(row) for row in rows]
 
 
+class PgQuery(PgObject):
+    def __init__(self, query, fromtable=None):
+        self.query = query
+        self.fromtable = fromtable
+        self._schema = None
+        self._database = None
+        self.object_type = 'query'
+
+    def get_dependencies(self):
+        return self.database.find_dependencies(self.query)
+
+    @property
+    def schema(self):
+        if not self._schema:
+            dependencies = list(self.get_dependencies())
+            for depend in dependencies:
+                if depend.schema.name not in SKIPPED_SCHEMAS:
+                    self._schema = depend.schema
+            else:
+                for schema in self.database.schemas.values():
+                    if schema.name not in SKIPPED_SCHEMAS:
+                        self._schema = schema
+        return self._schema
+
+    @property
+    def database(self):
+        return self._database
+
+    def set_database(self, database):
+        self._database = database
+
+    @property
+    def name(self):
+        return self.query
+
+    @staticmethod
+    def load_all_from_db(conn, database):
+        return [] # cannot be loaded from database, have to be added manually
+
+    @staticmethod
+    def load(database, data):
+        query = PgQuery(data['query'], data.get('from', None))
+        query.set_database(database)
+        return query
+
+    def to_json(self):
+        attributes = [('query', self.query)]
+        if self.fromtable:
+            attributes.append((
+                'from', OrderedDict([
+                    ('schema', self.fromtable.schema.name),
+                    ('table', self.fromtable.table.name)
+                ])
+            ))
+        return OrderedDict(attributes)
+
+
 object_loaders = {
     'schema': PgSchema.load,
     'table': PgTable.load,
@@ -2127,7 +2211,8 @@ object_loaders = {
     'trigger': PgTrigger.load,
     'cast': PgCast.load,
     'setting': PgSetting.load,
-    'row': PgRow.load
+    'row': PgRow.load,
+    'query': PgQuery.load
 }
 
 

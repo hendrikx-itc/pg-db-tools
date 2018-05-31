@@ -4,7 +4,7 @@ from pg_db_tools import iter_join
 from pg_db_tools.graph import database_to_graph
 from pg_db_tools.pg_types import PgEnumType, PgTable, PgFunction, PgView, \
     PgCompositeType, PgAggregate, PgSequence, PgSchema, PgRole, PgTrigger, \
-    PgCast, PgSetting, PgRow
+    PgCast, PgSetting, PgRow, PgQuery
 
 
 def render_setting_sql(pg_setting):
@@ -215,8 +215,27 @@ def render_row_sql(pg_row):
         'INSERT INTO {} ({}) VALUES ({});'.format(
             pg_row.table,
             ", ".join(pg_row.values.keys()),
-            ", ".join(pg_row.values.values())
+            ", ".join(
+                ["'{}'".format(x) if x == str(x)
+                 else 'null' if x is None
+                 else str(x)
+                 for x in pg_row.values.values()]
+            )
         )]
+
+
+def render_query_sql(pg_query):
+    if pg_query.fromtable:
+        return [
+            'SELECT {} FROM {};'.format(
+                pg_query.query,
+                pg_query.fromtable
+            )
+        ]
+    else:
+        return [
+            'SELECT {};'.format(pg_query.query)
+        ]
 
 
 def render_role_sql(pg_role):
@@ -332,6 +351,7 @@ sql_renderers = {
     PgRole: render_role_sql,
     PgCast: render_cast_sql,
     PgRow: render_row_sql,
+    PgQuery: render_query_sql
 }
 
 
