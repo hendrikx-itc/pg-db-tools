@@ -138,7 +138,7 @@ class PgDatabase:
                             list(database.triggers.values()) +
                             list(database.casts.values()) +
                             database.rows)
-        
+
         return database
 
     def register_schema(self, name):
@@ -2016,7 +2016,7 @@ class PgRow(PgObject):
     def load_all_from_db(conn, database):
         rows = []
         for table in database.tables.values():
-            rows += PgRow.load_all_for_table_from_db(conn, database,table)
+            rows += PgRow.load_all_for_table_from_db(conn, database, table)
         return rows
 
     @staticmethod
@@ -2178,7 +2178,7 @@ class PgQuery(PgObject):
 
     @staticmethod
     def load_all_from_db(conn, database):
-        return [] # cannot be loaded from database, have to be added manually
+        return []  # cannot be loaded from database, have to be added manually
 
     @staticmethod
     def load(database, data):
