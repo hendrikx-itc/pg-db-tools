@@ -19,9 +19,9 @@ SKIPPED_SCHEMAS = ['pg_catalog', 'information_schema', 'pg_toast', 'pg_temp_1',
 
 class PgDatabase:
 
-    dependencyre_with_arguments = re.compile('(?s)([\w_]+"?\.[\w_]+"?)\(')
+    dependencyre_with_arguments = re.compile(r'(?s)([\w_]+"?\.[\w_]+"?)\(')
     dependencyre_without_arguments = re.compile(
-        '([\w_]+)"?\.([\w_]+)(?!\w)(?!"?\()')
+        r'([\w_]+)"?\.([\w_]+)(?!\w)(?!"?\()')
 
     def __init__(self):
         self.extensions = []
