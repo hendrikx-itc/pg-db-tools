@@ -341,6 +341,13 @@ def render_schema_sql(pg_schema):
                 quote_ident(pg_schema.name),
                 quote_string(escape_string(pg_schema.comment))
             ))
+    for priv in pg_schema.privs:
+        yield(
+            'GRANT {} ON SCHEMA {} TO {};'.format(
+                priv[1],
+                quote_ident(pg_schema.name),
+                quote_ident(priv[0].name)
+            ))
 
 
 sql_renderers = {

@@ -126,8 +126,8 @@ class PgDatabase:
 
         PgIndex.load_all_from_db(conn, database)
 
-        database.objects = (list(database.schemas.values()) +
-                            list(database.roles.values()) +
+        database.objects = (list(database.roles.values()) +
+                            list(database.schemas.values()) +
                             list(database.sequences.values()) +
                             list(database.enum_types.values()) +
                             list(database.composite_types.values()) +
@@ -362,6 +362,10 @@ class PgSchema(PgObject):
         self.schema = self
         self.object_type = 'schema'
         self.comment = comment
+        self.privs = []
+        
+    def get_dependencies(self):
+        return [priv[0] for priv in self.privs]
 
     @property
     def database(self):
@@ -371,6 +375,7 @@ class PgSchema(PgObject):
     def load_all_from_db(conn, database):
         query = (
             "SELECT pg_namespace.oid, pg_namespace.nspname, "
+            "pg_namespace.nspacl, "
             "obj_description(pg_namespace.oid, 'pg_namespace') "
             "FROM pg_namespace "
         )
@@ -382,18 +387,39 @@ class PgSchema(PgObject):
 
             rows = cursor.fetchall()
 
+        nspaclre = re.compile('(.*)=(\w+)/')
+        def createSchema(row):
+            (oid, name, rights, comment) = row
+            schema = PgSchema(name, database, comment)
+            if rights:
+                rights = rights[1:-1]
+                for rightdata in rights.split(","):
+                    m = nspaclre.match(rightdata)
+                    if m:
+                        grantee = database.get_role_by_name(m.group(1))
+                        if grantee:
+                            if 'U' in m.group(2):
+                                schema.privs.append((grantee, 'USAGE'))
+                            if 'C' in m.group(2):
+                                schema.privs.append((grantee, 'CREATE'))
+            return schema
+            
         return {
-            oid: PgSchema(name, database, comment)
-            for oid, name, comment in rows
+            row[0]: createSchema(row)
+            for row in rows
         }
 
     @staticmethod
     def load(database, data):
-        return PgSchema(
+        schema = PgSchema(
             data['name'],
             database,
             data.get('comment')
         )
+        for right in data.get('privileges', []):
+            schema.privs.append((database.get_role_by_name(right['role']),
+                                 right['privilege']))
+        return schema
 
     def filter_objects(self, database_filter):
         """
@@ -457,8 +483,22 @@ class PgSchema(PgObject):
         arguments = [('name', self.name)]
         if self.comment:
             arguments.append(('comment', self.comment))
+        if self.privs:
+            grantees = set([priv[0] for priv in self.privs])
+            arguments.append((
+                'privileges',
+                [
+                    OrderedDict([
+                        ('role', grantee.name),
+                        ('privilege', ",".join([priv[1]
+                                                for priv in self.privs
+                                                if priv[0] == grantee]))
+                    ])
+                    for grantee in grantees
+                ]
+            ))
+            
         return OrderedDict(arguments)
-
 
 class PgTable(PgObject):
     def __init__(self, schema, name, columns):
