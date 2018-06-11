@@ -36,6 +36,7 @@ class PgDatabase:
         self.triggers = {}
         self.sequences = {}
         self.casts = {}
+        self.operators = {}
         self.rows = []
         self.dependencies = []
         self.queries = []
@@ -119,6 +120,8 @@ class PgDatabase:
 
         database.casts = PgCast.load_all_from_db(conn, database)
 
+        database.operators = PgOperator.load_all_from_db(conn, database)
+
         database.dependencies = PgDepend.load_all_from_db(conn, database)
 
         database.rows = PgRow.load_all_from_db(conn, database)
@@ -137,6 +140,7 @@ class PgDatabase:
                             list(database.views.values()) +
                             list(database.triggers.values()) +
                             list(database.casts.values()) +
+                            list(database.operators.values()) +
                             database.rows)
 
         return database
@@ -1368,6 +1372,105 @@ class PgCast(PgObject):
         return OrderedDict(attributes)
 
 
+class PgOperator(PgObject):
+    def __init__(self, name, lefttype, righttype, code,
+                 resulttype=None):
+        self.name = name
+        self.lefttype = lefttype
+        self.righttype = righttype
+        self.code = code
+        self.resulttype = resulttype
+        self.object_type = 'operator'
+
+    @property
+    def schema(self):
+        schema = None
+        for part in [self.lefttype, self.righttype, self.resulttype]:
+            if part:
+                if part.schema in SKIPPED_SCHEMAS:
+                    schema = schema or part.schema
+                else:
+                    return part.schema
+        return schema
+
+    def ident(self):
+        return self.name
+
+    def get_dependencies(self):
+        return [self.lefttype, self.righttype, self.resulttype] +\
+            self.database.find_dependencies(
+                self.code + '(null, null)') +\
+            self.database.find_dependencies(self.code + '(null)') +\
+            self.database.find_dependencies(self.code + '()')            
+
+    @staticmethod
+    def load(database, data):
+        name = data['name']
+        if data['left']:
+            lefttype = database.register_schema(
+                data['left']['schema']).get_type(
+                    data['left']['name'])
+        else:
+            lefttype = None
+        if data['right']:
+            righttype = database.register_schema(
+                data['right']['schema']).get_type(
+                    data['right']['name'])
+        else:
+            righttype = None
+        code = data.get('code')
+        return PgOperator(name, lefttype, righttype, code)
+
+    def to_json(self):
+        attributes = [
+            ('name', self.name),
+            ('code', self.code),
+        ]
+        if self.lefttype:
+            attributes.append((
+                'left',
+                OrderedDict([
+                    ('schema', self.lefttype.schema.name),
+                    ('name', self.lefttype.name)
+                ])
+            ))
+        if self.righttype:
+            attributes.append((
+                'right',
+                OrderedDict([
+                    ('schema', self.righttype.schema.name),
+                    ('name', self.righttype.name)
+                ])
+            ))
+        return OrderedDict(attributes)
+
+    @staticmethod
+    def load_all_from_db(conn, database):
+        query = (
+            'SELECT oid, oprname, oprleft, oprright, oprresult, '
+            'oprcode '
+            'FROM pg_operator'
+        )
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query)
+            rows = cursor.fetchall()
+
+        def operator_from_row(row):
+            (oid, name, left, right, result, code) = row
+            return PgOperator(name,
+                              left and database.types[left] or None,
+                              right and database.types[right] or None,
+                              code,
+                              result and database.types[result] or None
+            )
+
+        return {
+            row[0]: operator_from_row(row)
+            for row in rows
+        }
+
+
 class PgSequence(PgObject):
     def __init__(self, schema, name, startvalue="1", minvalue=None,
                  maxvalue=None, increment="1"):
@@ -1909,6 +2012,12 @@ class PgCompositeType(PgObject):
 
         return composite_types
 
+    def ident(self):
+        if self.schema is None or self.schema.name in SILENT_SCHEMAS:
+            return self.mapped_name
+        else:
+            return '{}.{}'.format(self.schema.name, self.name)
+
 
 class PgSourceCode(str):
     pass
@@ -2258,7 +2367,8 @@ object_loaders = {
     'cast': PgCast.load,
     'setting': PgSetting.load,
     'row': PgRow.load,
-    'query': PgQuery.load
+    'query': PgQuery.load,
+    'operator': PgOperator.load,
 }
 
 
