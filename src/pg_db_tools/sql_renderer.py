@@ -51,6 +51,17 @@ def render_table_sql(table):
             quote_string(escape_string(table.description))
         )
 
+    for column in table.columns:
+        if column.description:
+            yield (
+                'COMMENT ON COLUMN {}.{}.{} IS {};\n'
+            ).format(
+                quote_ident(table.schema.name),
+                quote_ident(table.name),
+                quote_ident(column.name),
+                quote_string(escape_string(column.description))
+            )
+
     if table.indexes:
         for index in table.indexes:
             yield ('CREATE{} INDEX {} ON {}.{} USING {};\n'.format(
@@ -159,24 +170,32 @@ def render_function_sql(pg_function):
 
         returns_part += str(pg_function.return_type)
 
-    return [
+    yield (
         'CREATE FUNCTION "{}"."{}"({})'.format(
             pg_function.schema.name, pg_function.name,
             ', '.join(render_argument(argument)
                       for argument in pg_function.arguments
                       if argument.mode in ('i', 'o', 'b', 'v'))
-        ),
-        returns_part,
-        'AS $function$' if '$$' in str(pg_function.src) else 'AS $$',
-        str(pg_function.src),
-        '${}$ LANGUAGE {} {}{}{};'.format(
+        ))
+    yield(returns_part)
+    yield('AS $function$' if '$$' in str(pg_function.src) else 'AS $$')
+    yield(str(pg_function.src))
+    yield('${}$ LANGUAGE {} {}{}{};'.format(
             'function' if '$$' in str(pg_function.src) else '',
             pg_function.language,
             pg_function.volatility.upper(),
             ' STRICT' if pg_function.strict else '',
             ' SECURITY DEFINER' if pg_function.secdef else ''
-        )
-    ]
+        ))
+    if pg_function.description:
+        yield('\nCOMMENT ON FUNCTION "{}"."{}"({}) IS \'{}\';').format(
+            pg_function.schema.name, pg_function.name,
+            ', '.join(render_argument(argument)
+                      for argument in pg_function.arguments
+                      if argument.mode in ('i', 'o', 'b', 'v')),
+            pg_function.description
+            )
+            
 
 
 def render_trigger_sql(pg_trigger):

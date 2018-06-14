@@ -602,7 +602,8 @@ class PgTable(PgObject):
                                        column_type_oid],
                                    'nullable': not column_notnull,
                                    'hasdef': column_hasdef,
-                                   'default': column_default_human})
+                                   'default': column_default_human,
+                                   'description': column_description})
                     for (table_oid, column_name, column_type_oid,
                          column_notnull, column_hasdef, column_description,
                          column_default_binary, column_default_human)
@@ -825,6 +826,7 @@ class PgColumn(PgObject):
         self.nullable = False
         self.description = None
         self.default = None
+        self.comment = None
 
     def to_json(self):
         attributes = [
