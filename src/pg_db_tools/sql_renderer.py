@@ -298,10 +298,21 @@ def render_role_sql(pg_role):
 
 
 def render_view_sql(pg_view):
-    return [
-        'CREATE VIEW "{}"."{}" AS'.format(pg_view.schema.name, pg_view.name),
-        pg_view.view_query
-    ]
+    yield (
+        'CREATE VIEW "{}"."{}" AS'.format(pg_view.schema.name, pg_view.name))
+    yield(pg_view.view_query)
+    
+    grantees = set([privilege[0] for privilege in pg_view.privs])
+
+    for grantee in grantees:
+        yield('\nGRANT {} ON TABLE {}.{} TO {};'.format(
+            ",".join([privilege[1]
+                      for privilege in pg_view.privs
+                      if privilege[0] == grantee]),
+            quote_ident(pg_view.schema.name),
+            quote_ident(pg_view.name),
+            grantee
+        ))
 
 
 def render_composite_type_sql(pg_composite_type):

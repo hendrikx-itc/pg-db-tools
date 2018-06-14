@@ -453,13 +453,6 @@ class PgSchema(PgObject):
                 raise KeyError('Type not defined in schema {}: {}'.format(
                     self.name, typename))
 
-    def get_table(self, name):
-        for table in self.tables:
-            if table.name == name:
-                return table
-        else:
-            return None
-
     @property
     def objects(self):
         return self.types + self.enum_types + self.composite_types +\
@@ -475,8 +468,11 @@ class PgSchema(PgObject):
 
     def get_table(self, name):
         for table in self.tables:
-            if table. name == name:
+            if table.name == name:
                 return table
+        for view in self.views:
+            if view.name == name:
+                return view
         else:
             return None
 
@@ -621,38 +617,6 @@ class PgTable(PgObject):
         for (child_oid, parent_oid) in inheritance:
             if child_oid in tables and parent_oid in tables:
                 tables[child_oid].inherits = tables[parent_oid]
-
-        query = (
-            "SELECT schemaname, tablename, tableowner "
-            "FROM pg_tables"
-        )
-
-        with closing(conn.cursor()) as cursor:
-            cursor.execute(query)
-            rows = cursor.fetchall()
-
-        for (schemaname, tablename, ownername) in rows:
-            table = database.get_schema_by_name(schemaname).get_table(
-                tablename)
-            owner = database.get_role_by_name(ownername)
-            if table and owner:
-                table.owner = owner
-
-        query = (
-            "SELECT grantee, table_schema, table_name, privilege_type "
-            "FROM information_schema.role_table_grants "
-            "WHERE grantee <> 'postgres' AND grantee NOT LIKE 'pg_%'"
-        )
-
-        with closing(conn.cursor()) as cursor:
-            cursor.execute(query)
-            rows = cursor.fetchall()
-
-        for (rolename, schemaname, tablename, priv) in rows:
-            table = database.get_schema_by_name(schemaname).get_table(
-                tablename)
-            if table:
-                table.privs.append((rolename, priv))
 
         return tables
 
@@ -2074,9 +2038,16 @@ class PgView(PgObject):
         self.name = name
         self.view_query = view_query
         self.object_type = 'view'
+        self.owner = None
+        self.privs = []
+
 
     def get_dependencies(self):
-        return self.database.find_dependencies(self.view_query)
+        return self.database.find_dependencies(self.view_query) +\
+            [self.database.get_role_by_name(priv[0])
+             for priv in self.privs
+            ] +\
+            ([self.owner] if self.owner else [])
 
     @staticmethod
     def load(database, data):
@@ -2087,6 +2058,13 @@ class PgView(PgObject):
             data['name'],
             PgViewQuery(data['query'])
         )
+        
+        if data.get('owner'):
+            pg_view.owner = database.get_role_by_name(data.get('owner'))
+
+        if 'privileges' in data:
+            for priv in data['privileges']:
+                pg_view.privs.append((priv['role'], priv['privilege']))
 
         schema.views.append(pg_view)
 
@@ -2113,6 +2091,41 @@ class PgView(PgObject):
             for oid, namespace_oid, name, view_def in rows
         }
 
+        query = (
+            "SELECT schemaname, tablename, tableowner "
+            "FROM pg_tables"
+        )
+
+        for view in views.values():
+            view.schema.views.append(view)
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query)
+            rows = cursor.fetchall()
+
+        for (schemaname, tablename, ownername) in rows:
+            table = database.get_schema_by_name(schemaname).get_table(
+                tablename)
+            owner = database.get_role_by_name(ownername)
+            if table and owner:
+                table.owner = owner
+
+        query = (
+            "SELECT grantee, table_schema, table_name, privilege_type "
+            "FROM information_schema.role_table_grants "
+            "WHERE grantee <> 'postgres' AND grantee NOT LIKE 'pg_%'"
+        )
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query)
+            rows = cursor.fetchall()
+         
+        for (rolename, schemaname, tablename, priv) in rows:
+            table = database.get_schema_by_name(schemaname).get_table(
+                tablename)
+            if table:
+                table.privs.append((rolename, priv))
+
         return views
 
     def to_json(self):
@@ -2121,6 +2134,24 @@ class PgView(PgObject):
             ('schema', self.schema.name),
             ('query', self.view_query)
         ]
+
+        if self.owner:
+            attributes.append(('owner', self.owner.name))
+
+        if self.privs:
+            grantees = set([priv[0] for priv in self.privs])
+            attributes.append((
+                'privileges',
+                [
+                    OrderedDict([
+                        ('role', grantee),
+                        ('privilege', ",".join([priv[1]
+                                                for priv in self.privs
+                                                if priv[0] == grantee]))
+                    ])
+                    for grantee in grantees
+                ]
+            ))
 
         return OrderedDict(attributes)
 
