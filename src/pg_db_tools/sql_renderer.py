@@ -188,12 +188,12 @@ def render_function_sql(pg_function):
             ' SECURITY DEFINER' if pg_function.secdef else ''
         ))
     if pg_function.description:
-        yield('\nCOMMENT ON FUNCTION "{}"."{}"({}) IS \'{}\';').format(
+        yield('\nCOMMENT ON FUNCTION "{}"."{}"({}) IS {};').format(
             pg_function.schema.name, pg_function.name,
             ', '.join(render_argument(argument)
                       for argument in pg_function.arguments
                       if argument.mode in ('i', 'o', 'b', 'v')),
-            pg_function.description
+            quote_string(escape_string(pg_function.description))
             )
             
 
