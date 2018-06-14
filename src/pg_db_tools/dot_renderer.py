@@ -58,21 +58,21 @@ class DotRenderer:
 
         if self.label_foreign_key_edges:
             attributes['label'] = '{port} = {dest_port}'.format(
-                port=foreign_key['columns'][0],
-                dest_port=foreign_key['references']['columns'][0]
+                port=foreign_key.columns[0],
+                dest_port=foreign_key.ref_columns[0]
             )
 
         if self.foreign_key_edge_mode == FOREIGN_KEY_EDGE_CONNECT_PORT:
             source = '{node_name}:{port}'.format(
                 node_name=table_node_name(table.schema.name, table.name),
-                port=foreign_key['columns'][0]
+                port=foreign_key.columns[0]
             )
             target = '{dest_node_name}:{dest_port}'.format(
                 dest_node_name=table_node_name(
-                    foreign_key['references']['table']['schema'],
-                    foreign_key['references']['table']['name']
+                    foreign_key.ref_table.schema.name,
+                    foreign_key.ref_table.name
                 ),
-                dest_port=foreign_key['references']['columns'][0]
+                dest_port=foreign_key.ref_columns[0]
             )
         else:
             source = '{node_name}'.format(
@@ -80,8 +80,8 @@ class DotRenderer:
             )
             target = '{dest_node_name}'.format(
                 dest_node_name=table_node_name(
-                    foreign_key['references']['table']['schema'],
-                    foreign_key['references']['table']['name']
+                    foreign_key.ref_table.schema.name,
+                    foreign_key.ref_table.name
                 )
             )
 
