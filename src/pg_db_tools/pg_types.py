@@ -515,6 +515,7 @@ class PgTable(PgObject):
         self.object_type = 'table'
         self.owner = None
         self.privs = []
+        self.persistence = 'permanent'
 
     def __str__(self):
         return '"{}"."{}"'.format(self.schema.name, self.name)
@@ -533,7 +534,7 @@ class PgTable(PgObject):
     def load_all_from_db(conn, database):
         query = (
             'SELECT pg_class.oid, relnamespace, relname, description, '
-            'relowner '
+            'relowner, relpersistence '
             'FROM pg_class '
             'LEFT JOIN pg_description ON pg_description.objoid = pg_class.oid '
             'WHERE relkind = \'r\''
@@ -546,7 +547,7 @@ class PgTable(PgObject):
             rows = cursor.fetchall()
 
         def table_from_row(row):
-            oid, namespace_oid, name, description, owner = row
+            oid, namespace_oid, name, description, owner, persistence = row
 
             pg_table = PgTable(database.schemas[namespace_oid], name, [])
 
@@ -554,6 +555,11 @@ class PgTable(PgObject):
 
             if description is not None:
                 pg_table.description = PgDescription(description)
+
+            if persistence == 'u':
+                pg_table.persistence = 'unlogged'
+            elif persistence == 't':
+                pg_table.persistence = 'temporary'
 
             return pg_table
 
@@ -638,6 +644,8 @@ class PgTable(PgObject):
         if description is not None:
             table.description = PgDescription(description)
 
+        table.persistence = data.get('persistence') or 'permanent'
+
         primary_key_data = data.get('primary_key')
 
         if primary_key_data is not None:
@@ -688,6 +696,9 @@ class PgTable(PgObject):
 
             if self.description is not None:
                 attributes.append(('description', self.description))
+
+            if self.persistence != 'permanent':
+                attributes.append(('persistence', self.persistence))
 
             attributes.append(
                 ('columns', [column.to_json() for column in self.columns])

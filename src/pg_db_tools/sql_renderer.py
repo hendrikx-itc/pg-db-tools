@@ -28,11 +28,13 @@ def render_table_sql(table):
         ))
 
     yield (
-        'CREATE TABLE {options}{ident}\n'
+        'CREATE {persistence}TABLE {options}{ident}\n'
         '(\n'
         '{columns_part}\n'
         '){post_options};\n'
     ).format(
+        persistence=("" if table.persistence == 'permanent' else
+                     table.persistence.upper() + " "),
         options=''.join('{} '.format(option) for option in options),
         ident='{}.{}'.format(
             quote_ident(table.schema.name), quote_ident(table.name)
