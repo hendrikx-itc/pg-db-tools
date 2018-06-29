@@ -197,7 +197,6 @@ def render_function_sql(pg_function):
                       if argument.mode in ('i', 'o', 'b', 'v')),
             quote_string(escape_string(pg_function.description))
             )
-            
 
 
 def render_trigger_sql(pg_trigger):
@@ -245,7 +244,8 @@ def render_operator_sql(pg_operator):
     if pg_operator.lefttype:
         result.append('    LEFTARG = {},'.format(pg_operator.lefttype.ident()))
     if pg_operator.righttype:
-        result.append('    RIGHTARG = {},'.format(pg_operator.righttype.ident()))
+        result.append('    RIGHTARG = {},'.format(
+            pg_operator.righttype.ident()))
     result[-1] = result[-1].rstrip(',')
     result.append(');')
     return result
@@ -303,7 +303,7 @@ def render_view_sql(pg_view):
     yield (
         'CREATE VIEW "{}"."{}" AS'.format(pg_view.schema.name, pg_view.name))
     yield(pg_view.view_query)
-    
+
     grantees = set([privilege[0] for privilege in pg_view.privs])
 
     for grantee in grantees:

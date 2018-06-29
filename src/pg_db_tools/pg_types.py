@@ -367,7 +367,7 @@ class PgSchema(PgObject):
         self.object_type = 'schema'
         self.comment = comment
         self.privs = []
-        
+
     def get_dependencies(self):
         return [priv[0] for priv in self.privs]
 
@@ -391,7 +391,8 @@ class PgSchema(PgObject):
 
             rows = cursor.fetchall()
 
-        nspaclre = re.compile('(.*)=(\w+)/')
+        nspaclre = re.compile(r'(.*)=(\w+)/')
+
         def createSchema(row):
             (oid, name, rights, comment) = row
             schema = PgSchema(name, database, comment)
@@ -407,7 +408,7 @@ class PgSchema(PgObject):
                             if 'C' in m.group(2):
                                 schema.privs.append((grantee, 'CREATE'))
             return schema
-            
+
         return {
             row[0]: createSchema(row)
             for row in rows
@@ -497,8 +498,9 @@ class PgSchema(PgObject):
                     for grantee in grantees
                 ]
             ))
-            
+
         return OrderedDict(arguments)
+
 
 class PgTable(PgObject):
     def __init__(self, schema, name, columns):
@@ -1378,7 +1380,7 @@ class PgOperator(PgObject):
             self.database.find_dependencies(
                 self.code + '(null, null)') +\
             self.database.find_dependencies(self.code + '(null)') +\
-            self.database.find_dependencies(self.code + '()')            
+            self.database.find_dependencies(self.code + '()')
 
     @staticmethod
     def load(database, data):
@@ -1435,11 +1437,12 @@ class PgOperator(PgObject):
 
         def operator_from_row(row):
             (oid, name, left, right, result, code) = row
-            return PgOperator(name,
-                              left and database.types[left] or None,
-                              right and database.types[right] or None,
-                              code,
-                              result and database.types[result] or None
+            return PgOperator(
+                name,
+                left and database.types[left] or None,
+                right and database.types[right] or None,
+                code,
+                result and database.types[result] or None
             )
 
         return {
@@ -2052,13 +2055,11 @@ class PgView(PgObject):
         self.owner = None
         self.privs = []
 
-
     def get_dependencies(self):
-        return self.database.find_dependencies(self.view_query) +\
-            [self.database.get_role_by_name(priv[0])
-             for priv in self.privs
-            ] +\
-            ([self.owner] if self.owner else [])
+        return self.database.find_dependencies(self.view_query) + [
+            self.database.get_role_by_name(priv[0])
+            for priv in self.privs
+        ] + ([self.owner] if self.owner else [])
 
     @staticmethod
     def load(database, data):
@@ -2069,7 +2070,7 @@ class PgView(PgObject):
             data['name'],
             PgViewQuery(data['query'])
         )
-        
+
         if data.get('owner'):
             pg_view.owner = database.get_role_by_name(data.get('owner'))
 
@@ -2130,7 +2131,7 @@ class PgView(PgObject):
         with closing(conn.cursor()) as cursor:
             cursor.execute(query)
             rows = cursor.fetchall()
-         
+
         for (rolename, schemaname, tablename, priv) in rows:
             table = database.get_schema_by_name(schemaname).get_table(
                 tablename)
