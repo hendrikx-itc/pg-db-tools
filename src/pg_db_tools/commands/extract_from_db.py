@@ -15,8 +15,8 @@ from pg_db_tools.pg_types import PgDatabase, PgSourceCode, PgDescription, \
 
 def setup_command_parser(subparsers):
     """
-    Sets up a new sub parser for the from_db command and adds it to the provided
-    subparsers
+    Sets up a new sub parser for the from_db command and adds it to the
+    provided subparsers
     """
     parser_extract = subparsers.add_parser(
         'from-db', help='command for extracting schema from live database'
@@ -102,7 +102,8 @@ def represent_odict(dump, tag, mapping, flow_style=None):
         node_value = dump.represent_data(item_value)
         if not (isinstance(node_key, yaml.ScalarNode) and not node_key.style):
             best_style = False
-        if not (isinstance(node_value, yaml.ScalarNode) and not node_value.style):
+        if not (isinstance(node_value, yaml.ScalarNode) and not
+                node_value.style):
             best_style = False
         value.append((node_key, node_value))
     if flow_style is None:

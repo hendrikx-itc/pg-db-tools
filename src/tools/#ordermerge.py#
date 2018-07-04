@@ -25,6 +25,11 @@ def main(source, ordersource):
     objectdict = dict(((obj.schema.name, obj.name, extended_type(obj)), obj)
                       for obj in source.objects)
     for object in ordersource.objects:
+        print(
+            
+        print(object.schema.name)
+        print(object.name)
+        print(extended_type(object)
         if (object.schema.name, object.name, extended_type(object))\
            in objectdict:
             result.objects.append(

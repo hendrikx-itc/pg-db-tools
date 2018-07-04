@@ -33,18 +33,22 @@ def init_command(args):
     copy_resource_tree(args.directory, 'pg_db_tools', 'doc_template')
 
 
-def copy_resource_tree(target_dir, package_name, resource_root, resource_dir=''):
+def copy_resource_tree(target_dir, package_name, resource_root,
+                       resource_dir=''):
     try:
         os.makedirs(os.path.join(target_dir, resource_dir))
     except OSError as e:
         if e.errno != errno.EEXIST:
             raise
 
-    for resource in resource_listdir(package_name, os.path.join(resource_root, resource_dir)):
+    for resource in resource_listdir(package_name,
+                                     os.path.join(resource_root,
+                                                  resource_dir)):
         resource_path = os.path.join(resource_root, resource_dir, resource)
 
         if resource_isdir(package_name, resource_path):
-            copy_resource_tree(target_dir, package_name, resource_root, os.path.join(resource_dir, resource))
+            copy_resource_tree(target_dir, package_name, resource_root,
+                               os.path.join(resource_dir, resource))
         else:
             stream = resource_stream(package_name, resource_path)
 

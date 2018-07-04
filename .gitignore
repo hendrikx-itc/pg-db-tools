@@ -1,2 +1,8 @@
 .idea
 *.pyc
+build/
+src/pg_db_tools.egg-info/
+src/pg_db_tools/__pycache__/
+src/pg_db_tools/commands/__pycache__/
+venv/
+*~

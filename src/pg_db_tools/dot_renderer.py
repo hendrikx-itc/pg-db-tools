@@ -1,5 +1,3 @@
-
-
 FOREIGN_KEY_EDGE_CONNECT_PORT = 1
 FOREIGN_KEY_EDGE_CONNECT_NODE = 2
 
@@ -60,21 +58,21 @@ class DotRenderer:
 
         if self.label_foreign_key_edges:
             attributes['label'] = '{port} = {dest_port}'.format(
-                port=foreign_key['columns'][0],
-                dest_port=foreign_key['references']['columns'][0]
+                port=foreign_key.columns[0],
+                dest_port=foreign_key.ref_columns[0]
             )
 
         if self.foreign_key_edge_mode == FOREIGN_KEY_EDGE_CONNECT_PORT:
             source = '{node_name}:{port}'.format(
                 node_name=table_node_name(table.schema.name, table.name),
-                port=foreign_key['columns'][0]
+                port=foreign_key.columns[0]
             )
             target = '{dest_node_name}:{dest_port}'.format(
                 dest_node_name=table_node_name(
-                    foreign_key['references']['table']['schema'],
-                    foreign_key['references']['table']['name']
+                    foreign_key.ref_table.schema.name,
+                    foreign_key.ref_table.name
                 ),
-                dest_port=foreign_key['references']['columns'][0]
+                dest_port=foreign_key.ref_columns[0]
             )
         else:
             source = '{node_name}'.format(
@@ -82,8 +80,8 @@ class DotRenderer:
             )
             target = '{dest_node_name}'.format(
                 dest_node_name=table_node_name(
-                    foreign_key['references']['table']['schema'],
-                    foreign_key['references']['table']['name']
+                    foreign_key.ref_table.schema.name,
+                    foreign_key.ref_table.name
                 )
             )
 
@@ -99,7 +97,8 @@ class DotRenderer:
 
     def render_table_html_label(self, table):
         return (
-            '<<table border="1" bgcolor="white" cellspacing="0" cellborder="0">\n'
+            '<<table border="1" bgcolor="white" cellspacing="0" '
+            'cellborder="0">\n'
             '  <tr><td colspan="3" border="1" sides="B">{name}</td></tr>\n'
             '{column_rows}\n'
             '</table>>\n'
@@ -110,7 +109,8 @@ class DotRenderer:
                 '<td port="{col_name}" align="left">{col_name}</td>'
                 '<td align="left">{data_type}</td></tr>'.format(
                     attrs='PK' if (
-                        table.primary_key and c.name in table.primary_key.columns
+                        table.primary_key and
+                        c.name in table.primary_key.columns
                     ) else '',
                     col_name=c.name,
                     data_type=c.data_type

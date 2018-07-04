@@ -141,6 +141,3 @@ texinfo_documents = [
      author, '{{ project_name }}', 'One line description of project.',
      'Miscellaneous'),
 ]
-
-
-

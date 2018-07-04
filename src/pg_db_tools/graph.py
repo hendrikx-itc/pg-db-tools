@@ -8,5 +8,4 @@ def database_to_graph(database):
         for table in schema.tables:
             graph.add_node(table)
 
-
     return graph

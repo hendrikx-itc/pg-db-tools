@@ -21,7 +21,8 @@ def render_rst_directory(out_dir, database):
         )
 
         index_file.writelines(
-            '    {}\n'.format(schema.name) for schema in database.schemas.values()
+            '    {}\n'.format(schema.name)
+            for schema in database.schemas.values()
         )
 
 
@@ -39,23 +40,29 @@ def render_rst_chunks(database):
 def render_rst_schema(schema):
     yield '{}\n\n'.format(header(1, 'Schema ``{}``'.format(schema.name)))
 
-    if len(schema.types):
+    if schema.types:
         yield '{}\n'.format(header(2, 'Types'))
 
         for pg_type in schema.types:
             yield render_type(pg_type)
 
-    if len(schema.tables):
+    if schema.tables:
         yield '{}\n'.format(header(2, 'Tables'))
 
         for table in schema.tables:
             yield render_table(table)
 
-    if len(schema.functions):
+    if schema.functions:
         yield '{}\n'.format(header(2, 'Functions'))
 
         for pg_function in schema.functions:
             yield render_function(pg_function)
+
+    if schema.sequences:
+        yield '{}\n'.format(header(2, 'Sequences'))
+
+        for pg_sequence in schema.sequences:
+            yield render_sequence(pg_sequences)
 
 
 header_level_symbol = {
@@ -130,6 +137,10 @@ def render_function(pg_function):
             for argument in pg_function.arguments
         )
     )
+
+
+def render_sequence(pg_sequence):
+    return '{}(integer)\n\n'.format(pg_sequence.name)
 
 
 def render_table(table):

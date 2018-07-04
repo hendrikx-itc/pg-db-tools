@@ -1,4 +1,5 @@
-from pg_db_tools.commands import compile_dot, compile_md, compile_rst, compile_sql
+from pg_db_tools.commands import compile_dot, compile_md,\
+    compile_rst, compile_sql
 
 
 def setup_command_parser(subparsers):

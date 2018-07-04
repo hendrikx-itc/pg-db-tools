@@ -70,6 +70,14 @@
             },
             "additionalProperties": false
         },
+	"sequence": {
+	    "type": "object",
+	    "properties": {
+	        "name": {
+		    "type": "string"
+		}
+	    }
+	},
         "column": {
             "type": "object",
             "properties": {
