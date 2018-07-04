@@ -6,7 +6,8 @@
             "type": "array",
             "items": {
                 "type": "string"
-            }
+            },
+            "additionalItems": false
         },
         "types": {
             "type": "array",
@@ -15,7 +16,8 @@
                 "oneOf": [
                     { "$ref": "#/definitions/enum" }
                 ]
-            }
+            },
+            "additionalItems": false
         },
         "objects": {
             "type": "array",
@@ -25,9 +27,11 @@
                     { "$ref": "#/definitions/table" },
                     { "$ref": "#/definitions/function" }
                 ]
-            }
+            },
+            "additionalItems": false
         }
     },
+    "additionalProperties": false,
     "definitions": {
         "enum": {
             "type": "object",
@@ -48,11 +52,14 @@
                             "type": "array",
                             "items": {
                                 "type": "string"
-                            }
+                            },
+                            "additionalItems": false
                         }
-                    }
+                    },
+                    "additionalProperties": false
                 }
-            }
+            },
+            "additionalProperties": false
         },
         "function": {
             "type": "object",
@@ -60,7 +67,8 @@
                 "name": {
                     "type": "string"
                 }
-            }
+            },
+            "additionalProperties": false
         },
         "column": {
             "type": "object",
@@ -79,7 +87,8 @@
                     "type": "string"
                 }
             },
-            "required": ["name", "data_type"]
+            "required": ["name", "data_type"],
+            "additionalProperties": false
         },
         "table": {
             "type": "object",
@@ -98,7 +107,8 @@
                         },
                         "columns": {
                             "type": "array",
-                            "items": { "$ref": "#/definitions/enum" }
+                            "items": { "$ref": "#/definitions/enum" },
+                            "additionalItems": false
                         },
                         "primary_key": {
                             "type": "object",
@@ -112,7 +122,8 @@
                                         "type": "string"
                                     }
                                 }
-                            }
+                            },
+                            "additionalProperties": false
                         },
                         "foreign_keys": {
                             "type": "array",
@@ -124,7 +135,8 @@
                                         "type": "array",
                                         "items": {
                                             "type": "string"
-                                        }
+                                        },
+                                        "additionalItems": false
                                     },
                                     "references": {
                                         "type": "object",
@@ -148,15 +160,19 @@
                                                     "type": "string"
                                                 }
                                             }
-                                        }
+                                        },
+                                        "additionalProperties": false
                                     }
                                 }
-                            }
+                            },
+                            "additionalItems": false
                         }
                     },
-                    "required": ["name", "columns"]
+                    "required": ["name", "columns"],
+                    "additionalProperties": false
                 }
-            }
+            },
+            "additionalProperties": false
         }
     }
 }
