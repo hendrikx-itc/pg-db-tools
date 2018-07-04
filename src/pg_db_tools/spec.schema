@@ -9,23 +9,25 @@
             },
             "additionalItems": false
         },
-        "types": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "oneOf": [
-                    { "$ref": "#/definitions/enum" }
-                ]
-            },
-            "additionalItems": false
-        },
         "objects": {
             "type": "array",
             "items": {
                 "type": "object",
                 "oneOf": [
                     { "$ref": "#/definitions/table" },
-                    { "$ref": "#/definitions/function" }
+                    { "$ref": "#/definitions/function" },
+		    { "$ref": "#/definitions/schema" },
+		    { "$ref": "#/definitions/role" },
+		    { "$ref": "#/definitions/enum" },
+		    { "$ref": "#/definitions/trigger" },
+		    { "$ref": "#/definitions/cast" },
+		    { "$ref": "#/definitions/operator" },
+		    { "$ref": "#/definitions/sequence" },
+		    { "$ref": "#/definitions/aggregate" },
+		    { "$ref": "#/definitions/query" },
+		    { "$ref": "#/definitions/composite" },
+		    { "$ref": "#/definitions/view" },
+		    { "$ref": "#/definitions/row" }
                 ]
             },
             "additionalItems": false
@@ -33,11 +35,50 @@
     },
     "additionalProperties": false,
     "definitions": {
+        "schema": {
+	    "type": "object",
+	    "required": ["schema"],
+	    "additionalProperties": false,
+	    "properties": {
+                "schema": {
+                    "type": "object",   
+ 	            "properties": {
+	                "name": {
+	                    "type": "string",
+		            "description": "Name of schema"
+		        },
+		        "comment": {
+		            "type": "string"
+		        },
+		        "privileges": {
+		            "type": "array",
+		            "items": {
+		                "type": "object",
+		                "properties": {
+		                    "role": {
+			                "type": "string",
+			                "description": "the role to which the privilege applies"
+			            },
+			            "privilege": {
+			                "type": "string",
+				        "description": "comma-separated list of privileges granted"
+		                    }
+			        },
+				"required": ["role", "privilege"],
+				"additionalProperties": false
+                            }
+                        }
+		    },
+                    "required": ["name"],
+	            "additionalProperties": false
+	        }
+            }
+        },
         "enum": {
             "type": "object",
-            "required": ["enum"],
+            "required": ["enum_type"],
             "properties": {
-                "enum": {
+                "enum_type": {
                     "type": "object",
                     "properties": {
                         "name": {
@@ -48,7 +89,7 @@
                             "type": "string",
                             "description": "Schema containing enum"
                         },
-                        "values": {
+                        "labels": {
                             "type": "array",
                             "items": {
                                 "type": "string"
@@ -56,6 +97,7 @@
                             "additionalItems": false
                         }
                     },
+		    "required": ["name", "schema", "labels"],
                     "additionalProperties": false
                 }
             },
@@ -64,20 +106,70 @@
         "function": {
             "type": "object",
             "properties": {
-                "name": {
-                    "type": "string"
+                "function": {
+                    "type": "object",
+		    "properties": {
+		        "name": {
+			     "type": "string"
+			},
+			"schema": {
+			     "type": "string"
+			},
+			"description": {
+			     "type": "string"
+			},
+			"return_type": {
+			     "type": "string"
+			},
+			"returns_set": {
+			     "type": "boolean"
+			},
+			"language": {
+			     "type": "string"
+			},
+			"volatility": {
+			     "type": "string"
+			},
+			"strict": {
+			     "type": "boolean"
+			},
+			"secdef": {
+			     "type": "boolean"
+			},
+			"arguments": {
+			    "type": "array",
+			    "items": {
+			        "type": "object",
+		     	        "properties": {
+				    "name": {
+			                "type": "string"
+				    },
+				    "data_type": {
+				        "type": "string"
+				    },
+				    "mode": {
+				        "type": "string"
+				    },
+				    "default": {
+				        "type": "string"
+				    }
+			        },
+				"required": ["data_type"],
+				"additionalProperties": false
+			    },
+			    "additionalItems": false
+			},
+			"source": {
+			    "type": "string"
+			}
+		    },
+		    "required": ["name", "schema", "return_type", "source"],
+		    "additionalProperties": false
                 }
             },
+	    "required": ["function"],
             "additionalProperties": false
         },
-	"sequence": {
-	    "type": "object",
-	    "properties": {
-	        "name": {
-		    "type": "string"
-		}
-	    }
-	},
         "column": {
             "type": "object",
             "properties": {
@@ -113,9 +205,37 @@
                             "type": "string",
                             "description": "Schema containing table"
                         },
+                        "description": {
+                            "type": "string"
+                        },
+                        "persistence": {
+                            "type": "string",
+                            "description": "Degree of persistence; one of permanent, unlogged or temporary; permanent is default"
+                        },
                         "columns": {
                             "type": "array",
-                            "items": { "$ref": "#/definitions/enum" },
+                            "items": {
+				"type": "object",
+				"properties": {
+				    "name": {
+					"type": "string"
+				    },
+				    "data_type": {
+					"type": "string"
+				    },
+				    "nullable": {
+					"type": "boolean"
+				    },
+				    "description": {
+					"type": "string"
+				    },
+				    "default": {
+					"type": "string"
+				    }
+				},
+				"required": ["name", "data_type"],
+				"additionalProperties": false
+			    },
                             "additionalItems": false
                         },
                         "primary_key": {
@@ -131,6 +251,20 @@
                                     }
                                 }
                             },
+                            "additionalProperties": false
+                        },
+                        "inherits": {
+                            "type": "object",
+                            "description": "Table from which the table inherits",
+			    "properties": {
+				"name": {
+                                    "type": "string"
+				},
+				"schema": {
+                                    "type": "string"
+				}
+                            },
+                            "required": ["name", "schema"],
                             "additionalProperties": false
                         },
                         "foreign_keys": {
@@ -174,13 +308,497 @@
                                 }
                             },
                             "additionalItems": false
-                        }
+                        },
+                        "indexes": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+					"type": "string"
+				    },
+				    "unique": {
+					"type": "boolean"
+				    },
+				    "definition": {
+					"type": "string"
+				    }
+                                },
+				"required": ["name", "definition"],
+				"additionalProperties": false
+                            }
+                        },
+                        "owner": {
+                            "type": "string",
+                            "description": "Role name of the owner"
+                        },
+                        "privileges": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "role": {
+                                        "type": "string"
+         			    },
+				    "privilege": {
+				        "type": "string"
+				    }
+			        },
+			        "required": ["role", "privilege"],
+				"additionalProperties": false
+			    },
+			    "additionalItems": false
+			}
                     },
-                    "required": ["name", "columns"],
+                    "required": ["name", "schema", "columns"],
                     "additionalProperties": false
                 }
             },
             "additionalProperties": false
-        }
+        },
+        "role": {
+            "type": "object",
+            "required": ["role"],
+            "properties": {
+                "role": {
+                    "type": "object",
+                    "properties": {
+		        "name": {
+			    "type": "string"
+			},
+			"super": {
+			    "type": "boolean",
+			    "description": "Does the role have superuser privileges?"
+			},
+			"inherit": {
+			    "type": "boolean",
+			    "description": "Does the role automatically inherit privileges?"
+			},
+			"createrole": {
+			    "type": "boolean",
+			    "description": "Is the role allowed to create more roles?"
+			},
+			"createdb": {
+			    "type": "boolean",
+			    "description": "Is the role allowed to create databases?"
+			},
+			"login": {
+			    "type": "boolean",
+			    "description": "Can the role login?"
+			},
+			"memberships": {
+			    "type": "array",
+			    "description": "Other roles the role is a member of",
+			    "items": {
+			         "type": "string"
+			    },
+			    "additionalItems": false
+			}
+		    },
+		    "required": ["name"],
+		    "additionalProperties": false
+		}
+	    }
+	},
+        "trigger": {
+            "type": "object",
+            "required": ["trigger"],
+	    "additionalProperties": false,
+            "properties": {
+                "trigger": {
+                    "type": "object",
+                    "properties": {
+		        "table": {
+			    "type": "object",
+			    "properties": {
+			        "schema": {
+				    "type": "string"
+				},
+				"name": {
+				    "type": "string"
+			 	}
+			    },
+			    "required": ["schema", "name"],
+			    "additionalProperties": false
+			},
+			"name": {
+			    "type": "string"
+			},
+			"function": {
+			    "type": "object",
+			    "properties": {
+			        "schema": {
+				    "type": "string"
+				},
+				"name": {
+				    "type": "string"
+			 	}
+			    },
+			    "required": ["schema", "name"],
+			    "additionalProperties": false
+			},
+			"when": {
+			    "type": "string"
+			},
+			"events": {
+			    "type": "array",
+			    "items": {
+			        "type": "string"
+			    },
+			    "additionalItems": false
+		        },
+			"affecteach": {
+			    "type": "string"
+		        }
+		    },
+		    "required": ["table", "name", "function", "events"],
+		    "additionalProperties": false
+		}
+	    }
+	},
+	"cast": {
+	    "type": "object",
+	    "required": ["cast"],
+	    "additionalProperties": false,
+	    "properties": {
+		"cast": {
+		    "type": "object",
+		    "properties": {
+			"source": {
+			    "type": "object",
+			    "properties": {
+				"schema": {
+				    "type": "string"
+				},
+				"name": {
+				    "type": "string"
+				}
+			    },
+			    "required": ["schema", "name"],
+			    "additionalProperties": false
+			},
+			"target": {
+			    "type": "object",
+			    "properties": {
+				"schema": {
+				    "type": "string"
+				},
+				"name": {
+				    "type": "string"
+				}
+			    },
+			    "required": ["schema", "name"],
+			    "additionalProperties": false
+			},
+			"function": {
+			    "type": "object",
+			    "properties": {
+				"schema": {
+				    "type": "string"
+				},
+				"name": {
+				    "type": "string"
+				}
+			    },
+			    "required": ["schema", "name"],
+			    "additionalProperties": false
+			},
+			"implicit": {
+			    "type": "boolean"
+			}
+		    },
+		    "required": ["source", "target", "function"],
+		    "additionalProperties": false
+		}
+	    }
+	},
+        "operator": {
+            "type": "object",
+            "required": ["operator"],
+	    "additionalProperties": false,
+            "properties": {
+                "operator": {
+                    "type": "object",
+		    "properties": {
+			"name": {
+			    "type": "string"
+			},
+			"code": {
+			    "type": "string"
+			},
+			"left": {
+			    "type": "object",
+			    "properties": {
+				"schema": {
+				    "type": "string"
+				},
+				"name": {
+				    "type": "string"
+				}
+			    },
+			    "required": ["schema", "name"],
+			    "additionalProperties": false
+			},
+			"right": {
+			    "type": "object",
+			    "properties": {
+				"schema": {
+				    "type": "string"
+				},
+				"name": {
+				    "type": "string"
+				}
+			    },
+			    "required": ["schema", "name"],
+			    "additionalProperties": false
+			}
+		    },
+		    "required": ["name", "code"],
+		    "additionalProperties": false
+		}
+	    }
+	},
+        "sequence": {
+            "type": "object",
+            "required": ["sequence"],
+	    "additionalProperties": false,
+            "properties": {
+                "sequence": {
+                    "type": "object",
+                    "properties": {
+			"name": {
+			    "type": "string"
+			},
+			"schema": {
+			    "type": "string"
+			},
+			"startvalue": {
+			    "type": "integer"
+			},
+			"minimumvalue": {
+			    "type": "integer"
+			},
+			"maximumvalue": {
+			    "type": "integer"
+			},
+			"increment": {
+			    "type": "integer"
+			}
+		    },
+		    "required": ["name", "schema"],
+		    "additionalProperties": false
+		}
+	    }
+	},
+        "query": {
+            "type": "object",
+            "required": ["query"],
+	    "additionalProperties": false,
+            "properties": {
+                "query": {
+                    "type": "object",
+                    "properties": {
+			"query": {
+			    "type": "string"
+			},
+			"from": {
+			    "type": "object",
+			    "properties": {
+				"schema": {
+				    "type": "string"
+				},
+				"table": {
+				    "type": "string"
+				}
+			    },
+			    "required": ["schema", "table"],
+			    "additionalProperties": false
+			}
+		    },
+		    "required": ["query"],
+		    "additionalProperties": false
+		}
+	    }
+	},
+        "aggregate": {
+            "type": "object",
+            "required": ["aggregate"],
+	    "additionalProperties": false,
+            "properties": {
+                "aggregate": {
+                    "type": "object",
+                    "properties": {
+			"name": {
+			    "type": "string"
+			},
+			"schema": {
+			    "type": "string"
+			},
+			"sfunc": {
+			    "type": "string"
+			},
+			"stype": {
+			    "type": "string"
+			},
+			"arguments": {
+			    "type": "array",
+			    "items": {
+				"type": "object",
+				"properties": {
+				    "name": {
+					"type": "string"
+				    },
+				    "data_type": {
+					"type": "string"
+				    },
+				    "mode": {
+					"type": "string"
+				    },
+				    "default": {
+					"type": "string"
+				    }
+				},
+				"required": ["data_type"],
+				"additionalProperties": false
+			    },
+			    "additionalItems": false
+			}
+		    },
+		    "required": ["name", "schema", "sfunc", "stype"],
+		    "additionalProperties": false
+		}
+	    }
+	},
+        "composite": {
+            "type": "object",
+            "required": ["composite_type"],
+	    "additionalProperties": false,
+            "properties": {
+                "composite_type": {
+                    "type": "object",
+                    "properties": {
+			"name": {
+			    "type": "string"
+			},
+			"schema": {
+			    "type": "string"
+			},
+                        "columns": {
+                            "type": "array",
+                            "items": {
+				"type": "object",
+				"properties": {
+				    "name": {
+					"type": "string"
+				    },
+				    "data_type": {
+					"type": "string"
+				    },
+				    "nullable": {
+					"type": "boolean"
+				    },
+				    "description": {
+					"type": "string"
+				    },
+				    "default": {
+					"type": "string"
+				    }
+				},
+				"required": ["name", "data_type"],
+				"additionalProperties": false
+			    },
+                            "additionalItems": false
+                        }
+		    },
+		    "required": ["name", "schema", "columns"],
+		    "additionalProperties": false
+		}
+	    }
+	},
+        "view": {
+            "type": "object",
+            "required": ["view"],
+	    "additionalProperties": false,
+            "properties": {
+                "view": {
+                    "type": "object",
+                    "properties": {
+			"name": {
+			    "type": "string"
+			},
+			"schema": {
+			    "type": "string"
+			},
+			"query": {
+			    "type": "string"
+			},
+			"owner": {
+			    "type": "string"
+			},
+			"privileges": {
+			    "type": "array",
+			    "items": {
+				"type": "object",
+				"properties": {
+				    "role": {
+					"type": "string"
+				    },
+				    "privilege": {
+					"type": "string"
+				    }
+				},
+				"required": ["role", "privilege"],
+				"additionalProperties": false
+			    },
+			    "additionalItems": false
+			}
+		    },
+		    "required": ["name", "schema", "query"],
+		    "additionalProperties": false
+		}
+	    }
+	},
+        "row": {
+            "type": "object",
+            "required": ["row"],
+	    "additionalProperties": false,
+            "properties": {
+                "row": {
+                    "type": "object",
+                    "properties": {
+			"table": {
+			    "type": "object",
+			    "properties": {
+				"schema": {
+				    "type": "string"
+				},
+				"name": {
+				    "type": "string"
+				}
+			    },
+			    "required": ["schema", "name"],
+			    "additionalProperties": false
+			},
+			"values": {
+			    "type": "array",
+			    "items": {
+				"type": "object",
+				"properties": {
+				    "column": {
+					"type": "string"
+				    },
+				    "value": { }
+				},
+				"required": ["column", "value"],
+				"additionalProperties": false
+			    },
+			    "additionalItems": false
+			}
+		    },
+		    "required": ["table", "values"],
+		    "additionalProperties": false
+		}
+	    }
+	}
     }
 }
