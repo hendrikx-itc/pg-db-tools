@@ -934,7 +934,7 @@ class PgForeignKey:
             data['references']['table']['schema'])
         return PgForeignKey(
             schema,
-            data['name'],
+            data.get('name'),
             data['columns'],
             schema.get(data['references']['table']['name']),
             data['references']['columns'],
