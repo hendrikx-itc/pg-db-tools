@@ -731,6 +731,12 @@ class PgTable(PgObject):
                     [index.to_json() for index in self.indexes]
                 ))
 
+            if self.check is not None:
+                attributes.append((
+                    'check',
+                    self.check
+                ))
+
             if self.owner is not None:
                 attributes.append((
                     'owner',

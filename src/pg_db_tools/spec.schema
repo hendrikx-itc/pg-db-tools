@@ -332,6 +332,9 @@
                             "type": "string",
                             "description": "Role name of the owner"
                         },
+			"check": {
+			    "type": "string",
+			},
                         "privileges": {
                             "type": "array",
                             "items": {
