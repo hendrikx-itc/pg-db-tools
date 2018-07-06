@@ -860,7 +860,6 @@ class PgForeignKey:
 
     def to_json(self):
         arguments = [
-            ('name', self.name),
             ('columns', self.columns),
             ('references', OrderedDict([
                 ('table', OrderedDict([
@@ -870,6 +869,8 @@ class PgForeignKey:
                 ('columns', self.ref_columns)
             ]))
         ]
+        if self.name:
+            arguments.append(('name', self.name))
         if self.on_update:
             arguments.append(('on_update', self.on_update))
         if self.on_delete:

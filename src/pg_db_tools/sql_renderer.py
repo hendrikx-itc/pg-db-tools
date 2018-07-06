@@ -449,10 +449,8 @@ class SqlRenderer:
 
     @staticmethod
     def render_foreign_key(index, schema, table, foreign_key):
-        try:
-            key_name = foreign_key.name
-        except AttributeError:
-            key_name = '{}_{}_fk_{}'.format(schema.name, table.name, index)
+        key_name = foreign_key.name or\
+                   '{}_{}_fk_{}'.format(schema.name, table.name, index)
         return [(
             'ALTER TABLE {schema_name}.{table_name}\n'
             '  ADD CONSTRAINT {key_name}\n'
