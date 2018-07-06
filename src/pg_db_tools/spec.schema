@@ -333,7 +333,17 @@
                             "description": "Role name of the owner"
                         },
 			"check": {
-			    "type": "string"
+			    "type": "array",
+			    "items": {
+			         "type": "object",
+				 "properties": {
+				      "expression": {
+				          "type": "string"
+				      }
+				 },
+				 "required": ["expression"],
+				 "additionalProperties": false
+			    }
 			},
                         "privileges": {
                             "type": "array",

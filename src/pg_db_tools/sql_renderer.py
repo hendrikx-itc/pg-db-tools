@@ -107,9 +107,8 @@ def table_defining_components(table):
                 ', '.join(unique_constraint['columns'])
             )
 
-    if table.check:
-        for check_constraint in table.check:
-            yield '  CHECK ({})'.format(check_constraint['expression'])
+    for check_constraint in table.check:
+        yield '  CHECK ({})'.format(check_constraint)
 
     if table.exclude:
         for exclude_constraint in table.exclude:

@@ -510,7 +510,7 @@ class PgTable(PgObject):
         self.primary_key = None
         self.foreign_keys = []
         self.unique = None
-        self.check = None
+        self.check = []
         self.description = None
         self.inherits = None
         self.indexes = []
@@ -655,7 +655,8 @@ class PgTable(PgObject):
 
         table.unique = data.get('unique')
 
-        table.check = data.get('check')
+        checks = data.get('check', [])
+        table.check = [constraint.get('expression') for constraint in checks]
 
         table.exclude = data.get('exclude')
 
@@ -731,10 +732,10 @@ class PgTable(PgObject):
                     [index.to_json() for index in self.indexes]
                 ))
 
-            if self.check is not None:
+            if self.check:
                 attributes.append((
                     'check',
-                    self.check
+                    [OrderedDict([('expression', constraint)]) for constraint in self.check]
                 ))
 
             if self.owner is not None:
