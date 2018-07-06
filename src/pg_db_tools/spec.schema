@@ -333,7 +333,7 @@
                             "description": "Role name of the owner"
                         },
 			"check": {
-			    "type": "string",
+			    "type": "string"
 			},
                         "privileges": {
                             "type": "array",
