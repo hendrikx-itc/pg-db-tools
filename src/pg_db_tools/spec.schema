@@ -67,7 +67,11 @@
 				"required": ["role", "privilege"],
 				"additionalProperties": false
                             }
-                        }
+                        },
+			"owner": {
+			    "type": "string",
+			    "description": "role that owns the schema"
+			}
 		    },
                     "required": ["name"],
 	            "additionalProperties": false

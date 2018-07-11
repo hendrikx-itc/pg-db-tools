@@ -386,6 +386,12 @@ def render_schema_sql(pg_schema):
                 quote_ident(pg_schema.name),
                 quote_string(escape_string(pg_schema.comment))
             ))
+    if pg_schema.owner:
+        yield (
+            'ALTER SCHEMA {} OWNER TO {};'.format(
+                quote_ident(pg_schema.name),
+                pg_schema.owner.name
+            ))
     for priv in pg_schema.privs:
         yield(
             'GRANT {} ON SCHEMA {} TO {};'.format(

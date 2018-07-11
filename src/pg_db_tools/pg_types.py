@@ -351,7 +351,7 @@ class PgObject:
 
 
 class PgSchema(PgObject):
-    def __init__(self, name, database, comment=None):
+    def __init__(self, name, database, comment=None, owner=None):
         self.name = name
         self.types = []
         self.enum_types = []
@@ -366,10 +366,12 @@ class PgSchema(PgObject):
         self.schema = self
         self.object_type = 'schema'
         self.comment = comment
+        self.owner = owner
         self.privs = []
 
     def get_dependencies(self):
-        return [priv[0] for priv in self.privs]
+        return [priv[0] for priv in self.privs] +\
+            ([self.owner] if self.owner else [])
 
     @property
     def database(self):
@@ -379,9 +381,10 @@ class PgSchema(PgObject):
     def load_all_from_db(conn, database):
         query = (
             "SELECT pg_namespace.oid, pg_namespace.nspname, "
-            "pg_namespace.nspacl, "
+            "schemata.schema_owner, pg_namespace.nspacl, "
             "obj_description(pg_namespace.oid, 'pg_namespace') "
-            "FROM pg_namespace "
+            "FROM pg_namespace LEFT JOIN information_schema.schemata "
+            "ON pg_namespace.nspname = schemata.schema_name"
         )
 
         query_args = tuple()
@@ -394,7 +397,7 @@ class PgSchema(PgObject):
         nspaclre = re.compile(r'(.*)=(\w+)/')
 
         def createSchema(row):
-            (oid, name, rights, comment) = row
+            (oid, name, owner, rights, comment) = row
             schema = PgSchema(name, database, comment)
             if rights:
                 rights = rights[1:-1]
@@ -407,6 +410,8 @@ class PgSchema(PgObject):
                                 schema.privs.append((grantee, 'USAGE'))
                             if 'C' in m.group(2):
                                 schema.privs.append((grantee, 'CREATE'))
+            if owner and database.get_role_by_name(owner):
+                schema.owner = database.get_role_by_name(owner)
             return schema
 
         return {
@@ -421,6 +426,8 @@ class PgSchema(PgObject):
             database,
             data.get('comment')
         )
+        if data.get('owner'):
+            schema.owner = database.get_role_by_name(data.get('owner'))
         for right in data.get('privileges', []):
             schema.privs.append((database.get_role_by_name(right['role']),
                                  right['privilege']))
@@ -498,6 +505,8 @@ class PgSchema(PgObject):
                     for grantee in grantees
                 ]
             ))
+        if self.owner:
+            arguments.append(('owner', self.owner.name))
 
         return OrderedDict(arguments)
 
