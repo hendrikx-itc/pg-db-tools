@@ -93,6 +93,8 @@ class PgDatabase:
 
         PgPrimaryKey.load_all_from_db(conn, database)
 
+        PgCheck.load_all_from_db(conn, database)
+
         database.views = PgView.load_all_from_db(conn, database)
 
         for pg_view in database.views.values():
@@ -519,7 +521,7 @@ class PgTable(PgObject):
         self.primary_key = None
         self.foreign_keys = []
         self.unique = None
-        self.check = []
+        self.checks = []
         self.description = None
         self.inherits = None
         self.indexes = []
@@ -664,8 +666,9 @@ class PgTable(PgObject):
 
         table.unique = data.get('unique')
 
-        checks = data.get('check', [])
-        table.check = [constraint.get('expression') for constraint in checks]
+        checks = data.get('checks', [])
+        table.checks = [PgCheck(check.get('name'), check.get('expression'))
+                        for check in checks]
 
         table.exclude = data.get('exclude')
 
@@ -741,10 +744,12 @@ class PgTable(PgObject):
                     [index.to_json() for index in self.indexes]
                 ))
 
-            if self.check:
+            if self.checks:
                 attributes.append((
-                    'check',
-                    [OrderedDict([('expression', constraint)]) for constraint in self.check]
+                    'checks',
+                    [OrderedDict([('name', check.name),
+                                  ('expression', check.expression)])
+                     for check in self.checks]
                 ))
 
             if self.owner is not None:
@@ -810,6 +815,37 @@ class PgPrimaryKey(PgObject):
     @staticmethod
     def load(data):
         return PgPrimaryKey(data.get('name'), data.get('columns'))
+
+
+class PgCheck(PgObject):
+    def __init__(self, name, expression):
+        self.name = name
+        self.expression = expression
+
+    def to_json(self):
+        return OrderedDict([
+            ('name', self.name),
+            ('expression', self.expression)
+        ])
+
+    @staticmethod
+    def load_all_from_db(conn, database):
+        query = (
+            "SELECT conrelid, conname, consrc "
+            "FROM pg_constraint "
+            "WHERE contype = 'c' AND conrelid != 0"
+        )
+
+        query_args = tuple()
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query, query_args)
+
+            rows = cursor.fetchall()
+
+        for table_oid, name, expression in rows:
+            table = database.tables[table_oid]
+            table.checks.append(PgCheck(name, expression))
 
 
 class PgColumn(PgObject):

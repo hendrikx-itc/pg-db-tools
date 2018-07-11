@@ -345,11 +345,14 @@
                             "type": "string",
                             "description": "Role name of the owner"
                         },
-			"check": {
+			"checks": {
 			    "type": "array",
 			    "items": {
 			         "type": "object",
 				 "properties": {
+				      "name":  {
+				          "type": "string"
+			  	      },
 				      "expression": {
 				          "type": "string"
 				      }

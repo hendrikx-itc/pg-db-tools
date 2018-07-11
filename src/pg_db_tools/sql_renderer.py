@@ -107,8 +107,11 @@ def table_defining_components(table):
                 ', '.join(unique_constraint['columns'])
             )
 
-    for check_constraint in table.check:
-        yield '  CHECK ({})'.format(check_constraint)
+    for check in table.checks:
+        yield '  CONSTRAINT {} CHECK {}'.format(
+            quote_ident(check.name),
+            check.expression
+        )
 
     if table.exclude:
         for exclude_constraint in table.exclude:
