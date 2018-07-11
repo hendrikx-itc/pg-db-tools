@@ -419,6 +419,9 @@
 			         "type": "string"
 			    },
 			    "additionalItems": false
+			},
+			"description": {
+			    "type": "string"
 			}
 		    },
 		    "required": ["name"],

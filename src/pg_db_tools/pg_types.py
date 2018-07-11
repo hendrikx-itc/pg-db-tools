@@ -1677,7 +1677,7 @@ class PgRole(PgObject):
     known_roles = {}  # if necessary contains names as keys, roles as values
 
     def __init__(self, name, superuser, inherit, createrole, createdb,
-                 login, membership=None):
+                 login, membership=None, description=None):
         self.name = name
         self.super = superuser
         self.inherit = inherit
@@ -1685,6 +1685,7 @@ class PgRole(PgObject):
         self.createdb = createdb
         self.login = login
         self.membership = membership or []
+        self.description = description
         self.schema = self  # a hack because roles don't have a schema,
         #                     but some functions assume presence
         self.object_type = 'role'
@@ -1702,7 +1703,7 @@ class PgRole(PgObject):
         pg_role = PgRole(
             data['name'], data.get('super', False), data.get('inherit', True),
             data.get('createrole', False), data.get('createdb', False),
-            data.get('login', False), roles
+            data.get('login', False), roles, data.get('description')
         )
 
         PgRole.known_roles[data['name']] = pg_role
@@ -1722,13 +1723,17 @@ class PgRole(PgObject):
             attributes.append(('memberships',
                                [role.name for role in self.membership]))
 
+        if self.description is not None:
+            attributes.append(('description', self.description))
+
         return OrderedDict(attributes)
 
     def load_all_from_db(conn, database):
         query = (
             "SELECT oid, rolname, rolsuper, rolinherit, rolcreaterole, "
-            "rolcreatedb, rolcanlogin "
-            "FROM pg_roles "
+            "rolcreatedb, rolcanlogin, description "
+            "FROM pg_roles LEFT JOIN pg_shdescription "
+            "ON pg_roles.oid = pg_shdescription.objoid "
             "WHERE rolname <> 'postgres' AND rolname NOT LIKE 'pg_%'"
             )
 
@@ -1738,9 +1743,9 @@ class PgRole(PgObject):
 
         def role_from_row(row):
             (oid, name, superuser, inherit, createrole, createdb,
-             canlogin) = row
+             canlogin, description) = row
             return PgRole(name, superuser, inherit, createrole, createdb,
-                          canlogin)
+                          canlogin, description=description)
 
         roles = {
             row[0]: role_from_row(row)

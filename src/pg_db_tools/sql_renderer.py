@@ -295,7 +295,11 @@ def render_role_sql(pg_role):
         "  END IF;\nEND\n$$;",
         ] +\
         ["\nGRANT {} TO {};".format(membership.name, pg_role.name)
-         for membership in pg_role.membership]
+         for membership in pg_role.membership] +\
+        (["\nCOMMENT ON ROLE {} IS '{}';".format(
+            pg_role.name,
+            pg_role.description
+        )] if pg_role.description is not None else [])
 
 
 def render_view_sql(pg_view):
