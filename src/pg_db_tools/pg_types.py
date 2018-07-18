@@ -382,11 +382,9 @@ class PgSchema(PgObject):
     @staticmethod
     def load_all_from_db(conn, database):
         query = (
-            "SELECT pg_namespace.oid, pg_namespace.nspname, "
-            "schemata.schema_owner, pg_namespace.nspacl, "
+            "SELECT oid, nspname, nspowner, nspacl, "
             "obj_description(pg_namespace.oid, 'pg_namespace') "
-            "FROM pg_namespace LEFT JOIN information_schema.schemata "
-            "ON pg_namespace.nspname = schemata.schema_name"
+            "FROM pg_namespace"
         )
 
         query_args = tuple()
@@ -412,8 +410,8 @@ class PgSchema(PgObject):
                                 schema.privs.append((grantee, 'USAGE'))
                             if 'C' in m.group(2):
                                 schema.privs.append((grantee, 'CREATE'))
-            if owner and database.get_role_by_name(owner):
-                schema.owner = database.get_role_by_name(owner)
+            if owner and owner in database.roles:
+                schema.owner = database.roles[owner]
             return schema
 
         return {
