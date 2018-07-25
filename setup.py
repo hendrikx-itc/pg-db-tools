@@ -13,7 +13,7 @@ setup(
         'pg_db_tools.commands'
     ],
     install_requires=[
-        'PyYAML', 'jsonschema', 'networkx', 'Jinja2', 'psycopg2'
+        'PyYAML', 'jsonschema', 'networkx', 'Jinja2', 'psycopg2-binary'
     ],
     package_dir={
         '': 'src'
