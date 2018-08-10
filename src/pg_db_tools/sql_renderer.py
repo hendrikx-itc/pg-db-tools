@@ -66,7 +66,7 @@ def render_table_sql(table):
 
     if table.indexes:
         for index in table.indexes:
-            yield ('CREATE{} INDEX {} ON {}.{} USING {};\n'.format(
+            yield ('CREATE{} INDEX "{}" ON {}.{} USING {};\n'.format(
                 " UNIQUE" if index.unique else "",
                 index.name,
                 quote_ident(table.schema.name),
@@ -172,7 +172,7 @@ def render_function_sql(pg_function):
         if pg_function.returns_set:
             returns_part += 'SETOF '
 
-        returns_part += str(pg_function.return_type)
+        returns_part += pg_function.return_type.safe_ident()
 
     yield (
         'CREATE FUNCTION "{}"."{}"({})'.format(
@@ -371,11 +371,11 @@ def render_aggregate_sql(pg_aggregate):
 
 def render_argument(pg_argument):
     if pg_argument.name is None:
-        return str(pg_argument.data_type.ident())
+        return str(pg_argument.data_type.safe_ident())
     else:
         return '{} {}{}'.format(
             quote_ident(pg_argument.name),
-            str(pg_argument.data_type.ident()),
+            pg_argument.data_type.safe_ident(),
             '' if pg_argument.default is None
             else ' DEFAULT {}'.format(pg_argument.default)
         )

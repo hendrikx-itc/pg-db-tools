@@ -314,6 +314,8 @@ def load(infile):
 
 
 class PgObject:
+    simpletypename_re = re.compile('[a-z][a-z0-9_\s]*(?:\[\])?$')
+
     # abstract class, serving as a base class for the classes below
     def is_blocked(self, blockingobjects, samenameblocks=True):
         # is this object dependent on some object in blockingobjects
@@ -351,6 +353,14 @@ class PgObject:
     def database(self):
         return self.schema.database
 
+    def safe_ident(self):
+        ident_parts = str(self.ident()).split('.')
+        return '.'.join([
+            ip if PgObject.simpletypename_re.match(ip) else
+            '"{}"[]'.format(ip[:-2]) if ip.endswith("[]") else
+            '"{}"'.format(ip)
+            for ip in ident_parts
+        ])
 
 class PgSchema(PgObject):
     def __init__(self, name, database, comment=None, owner=None):
