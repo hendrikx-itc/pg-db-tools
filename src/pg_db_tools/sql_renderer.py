@@ -108,10 +108,15 @@ def table_defining_components(table):
             )
 
     for check in table.checks:
-        yield '  CONSTRAINT {} CHECK {}'.format(
-            quote_ident(check.name),
-            check.expression
-        )
+        if check.name:
+            yield '  CONSTRAINT {} CHECK {}'.format(
+                quote_ident(check.name),
+                check.expression
+            )
+        else:
+            yield '  CHECK {}'.format(
+                check.expression
+            )  
 
     if table.exclude:
         for exclude_constraint in table.exclude:
