@@ -364,7 +364,7 @@
 				          "type": "string"
 				      }
 				 },
-				 "required": ["expression"],
+				 "required": ["name", "expression"],
 				 "additionalProperties": false
 			    }
 			},
