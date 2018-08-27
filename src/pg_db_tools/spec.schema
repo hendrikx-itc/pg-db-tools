@@ -126,19 +126,23 @@
 			     "type": "string"
 			},
 			"returns_set": {
-			     "type": "boolean"
+			     "type": "boolean",
+			     "default": false
 			},
 			"language": {
 			     "type": "string"
 			},
 			"volatility": {
-			     "type": "string"
+			     "type": "string",
+			     "default": "volatile"
 			},
 			"strict": {
-			     "type": "boolean"
+			     "type": "boolean",
+			     "default": false
 			},
 			"secdef": {
-			     "type": "boolean"
+			     "type": "boolean",
+			     "default": false
 			},
 			"arguments": {
 			    "type": "array",
@@ -185,6 +189,7 @@
                 },
                 "nullable": {
                     "type": "boolean",
+		    "default": true,
                     "description": "Can this column contain null values?"
                 },
                 "description": {
@@ -214,7 +219,8 @@
                         },
                         "persistence": {
                             "type": "string",
-                            "description": "Degree of persistence; one of permanent, unlogged or temporary; permanent is default"
+			    "default": "permanent",
+                            "description": "Degree of persistence; one of permanent, unlogged or temporary"
                         },
                         "columns": {
                             "type": "array",
@@ -331,7 +337,8 @@
 					"type": "string"
 				    },
 				    "unique": {
-					"type": "boolean"
+					"type": "boolean",
+					"default": false
 				    },
 				    "definition": {
 					"type": "string"
@@ -397,22 +404,27 @@
 			},
 			"super": {
 			    "type": "boolean",
+			    "default": false,
 			    "description": "Does the role have superuser privileges?"
 			},
 			"inherit": {
 			    "type": "boolean",
+			    "default": true,
 			    "description": "Does the role automatically inherit privileges?"
 			},
 			"createrole": {
 			    "type": "boolean",
+			    "default": false,
 			    "description": "Is the role allowed to create more roles?"
 			},
 			"createdb": {
 			    "type": "boolean",
+			    "default": false,
 			    "description": "Is the role allowed to create databases?"
 			},
 			"login": {
 			    "type": "boolean",
+			    "default": false,
 			    "description": "Can the role login?"
 			},
 			"memberships": {
@@ -727,7 +739,8 @@
 					"type": "string"
 				    },
 				    "nullable": {
-					"type": "boolean"
+					"type": "boolean",
+					"default": true
 				    },
 				    "description": {
 					"type": "string"
