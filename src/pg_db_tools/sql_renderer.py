@@ -116,7 +116,7 @@ def table_defining_components(table):
         else:
             yield '  CHECK {}'.format(
                 check.expression
-            )  
+            )
 
     if table.exclude:
         for exclude_constraint in table.exclude:
