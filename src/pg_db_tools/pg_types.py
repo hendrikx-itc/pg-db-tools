@@ -788,8 +788,8 @@ class PgTable(PgObject):
         # do we have a column (very much) comparable to other_column?
         for own_column in self.columns:
             if own_column.name == other_column.name and\
-               own_column.data_type.ident() == other_column.data_type.ident() and\
-               own_column.nullable == other_column.nullable:
+               own_column.data_type.ident() == other_column.data_type.ident()\
+               and own_column.nullable == other_column.nullable:
                 return True
         return False
 

@@ -96,7 +96,8 @@ def render_table_sql(table):
 
 def table_defining_components(table):
     for column_data in table.columns:
-        if table.inherits and table.inherits.has_comparable_column(column_data):
+        if table.inherits\
+           and table.inherits.has_comparable_column(column_data):
             # We already have this from inheritence, so don't need to define
             continue
         yield '  {}'.format(render_column_definition(column_data))
