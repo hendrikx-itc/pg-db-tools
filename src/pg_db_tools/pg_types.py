@@ -784,6 +784,15 @@ class PgTable(PgObject):
 
             return OrderedDict(attributes)
 
+    def has_comparable_column(self, other_column):
+        # do we have a column (very much) comparable to other_column?
+        for own_column in self.columns:
+            if own_column.name == other_column.name and\
+               own_column.data_type.ident() == other_column.data_type.ident() and\
+               own_column.nullable == other_column.nullable:
+                return True
+        return False
+
 
 class PgPrimaryKey(PgObject):
     def __init__(self, name, columns):
@@ -1895,6 +1904,9 @@ class PgTableRef(PgObject):
 
     def to_json(self, short=False, showdefault=False):
         return self.dereference().to_json(short=short, showdefault=showdefault)
+
+    def has_comparable_column(self, other_column):
+        return self.dereference().has_comparable_column(other_column)
 
 
 class PgType(PgObject):
