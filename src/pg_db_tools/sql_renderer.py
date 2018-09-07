@@ -277,16 +277,20 @@ def render_row_sql(pg_row):
 
 
 def render_query_sql(pg_query):
+    if pg_query.select:
+        query = 'SELECT {}'.format(pg_query.query)
+    else:
+        query = pg_query.query
     if pg_query.fromtable:
         return [
-            'SELECT {} FROM {};'.format(
+            '{} FROM {};'.format(
                 pg_query.query,
                 pg_query.fromtable
             )
         ]
     else:
         return [
-            'SELECT {};'.format(pg_query.query)
+            '{};'.format(pg_query.query)
         ]
 
 

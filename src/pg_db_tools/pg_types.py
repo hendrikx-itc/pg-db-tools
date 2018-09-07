@@ -2421,15 +2421,19 @@ class PgDepend:
 
 
 class PgQuery(PgObject):
-    def __init__(self, query, fromtable=None):
+    def __init__(self, query, select=True, fromtable=None):
         self.query = query
+        self.select = select
         self.fromtable = fromtable
         self._schema = None
         self._database = None
         self.object_type = 'query'
 
     def get_dependencies(self):
-        return self.database.find_dependencies(self.query)
+        result = self.database.find_dependencies(self.query)
+        if self.fromtable:
+            result.append(self.fromtable)
+        return result
 
     @property
     def schema(self):
@@ -2461,12 +2465,15 @@ class PgQuery(PgObject):
 
     @staticmethod
     def load(database, data):
-        query = PgQuery(data['query'], data.get('from', None))
+        query = PgQuery(data['query'], data.get('select', True), data.get('from'))
         query.set_database(database)
         return query
 
     def to_json(self):
-        attributes = [('query', self.query)]
+        attributes = [
+            ('query', self.query),
+            ('select', self.select)
+        ]
         if self.fromtable:
             attributes.append((
                 'from', OrderedDict([

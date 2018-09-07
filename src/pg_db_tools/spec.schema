@@ -645,6 +645,10 @@
 			"query": {
 			    "type": "string"
 			},
+			"select": {
+			    "type": "boolean",
+			    "default": true
+			},
 			"from": {
 			    "type": "object",
 			    "properties": {
