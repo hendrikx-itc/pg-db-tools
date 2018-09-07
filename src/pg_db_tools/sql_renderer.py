@@ -284,13 +284,13 @@ def render_query_sql(pg_query):
     if pg_query.fromtable:
         return [
             '{} FROM {};'.format(
-                pg_query.query,
+                query,
                 pg_query.fromtable
             )
         ]
     else:
         return [
-            '{};'.format(pg_query.query)
+            '{};'.format(query)
         ]
 
 
