@@ -2465,7 +2465,9 @@ class PgQuery(PgObject):
 
     @staticmethod
     def load(database, data):
-        query = PgQuery(data['query'], data.get('select', True), data.get('from'))
+        query = PgQuery(data['query'],
+                        data.get('select', True),
+                        data.get('from'))
         query.set_database(database)
         return query
 
