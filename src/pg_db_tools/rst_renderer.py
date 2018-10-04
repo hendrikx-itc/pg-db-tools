@@ -62,7 +62,7 @@ def render_rst_schema(schema):
         yield '{}\n'.format(header(2, 'Sequences'))
 
         for pg_sequence in schema.sequences:
-            yield render_sequence(pg_sequences)
+            yield render_sequence(pg_sequence)
 
 
 header_level_symbol = {
