@@ -536,16 +536,17 @@ class PgTable(PgObject):
         self.indexes = []
         self.object_type = 'table'
         self.owner = None
-        self.privs = []
+        self.privileges = []
         self.persistence = 'permanent'
 
     def __str__(self):
         return '"{}"."{}"'.format(self.schema.name, self.name)
 
     def get_dependencies(self):
-        dependencies = [key.ref_table for key in self.foreign_keys] +\
-                       [self.database.get_role_by_name(priv[0])
-                        for priv in self.privs]
+        dependencies = [
+            key.ref_table for key in self.foreign_keys] + [self.database.get_role_by_name(priv[0])
+            for priv in self.privileges
+        ]
         if self.inherits:
             dependencies.append(self.inherits)
         if self.owner:
@@ -698,9 +699,10 @@ class PgTable(PgObject):
             for index in data['indexes']:
                 table.indexes.append(PgIndex.load(table, index))
 
-        if 'privileges' in data:
-            for priv in data['privileges']:
-                table.privs.append((priv['role'], priv['privilege']))
+        table.privileges = [
+            (privilege['role'], privilege['privilege'])
+            for privilege in data.get('privileges', [])
+        ]
 
         schema.tables.append(table)
 
@@ -767,15 +769,15 @@ class PgTable(PgObject):
                     self.owner.name
                 ))
 
-            if self.privs:
-                grantees = set([priv[0] for priv in self.privs])
+            if self.privileges:
+                grantees = set([priv[0] for priv in self.privileges])
                 attributes.append((
                     'privileges',
                     [
                         OrderedDict([
                             ('role', grantee),
                             ('privilege', ",".join([priv[1]
-                                                    for priv in self.privs
+                                                    for priv in self.privileges
                                                     if priv[0] == grantee]))
                         ])
                         for grantee in grantees
