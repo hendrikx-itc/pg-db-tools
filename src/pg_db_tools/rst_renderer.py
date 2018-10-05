@@ -128,14 +128,20 @@ def render_function(pg_function):
             return '{} {}'.format(argument.name, str(argument.data_type))
 
     return (
-        '{}({})\n'
-        '\n'
+        '{}\n'
+        '{}\n\n'
     ).format(
-        header(3, pg_function.name),
-        ', '.join(
-            render_argument(argument)
-            for argument in pg_function.arguments
-        )
+        header(
+            3,
+            '{}({})'.format(
+                pg_function.name,
+                ', '.join(
+                    render_argument(argument)
+                    for argument in pg_function.arguments
+                )
+            )
+        ),
+        '' if pg_function.description is None else pg_function.description
     )
 
 
