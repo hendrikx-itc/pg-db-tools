@@ -181,9 +181,13 @@ class PgDatabase:
 
         return database
 
-    def to_json(self, internal_order=False):
-        objects_to_include = [object for object in self.objects
-                              if object.schema.name not in SKIPPED_SCHEMAS]
+    def to_json(self, schema_names=None, internal_order=False):
+        if schema_names is None or len(schema_names) == 0:
+            objects_to_include = [object for object in self.objects
+                                  if object.schema.name not in SKIPPED_SCHEMAS]
+        else:
+            objects_to_include = [object for object in self.objects
+                if object.schema.name not in SKIPPED_SCHEMAS and object.schema.name in schema_names]
         for object in objects_to_include:
             object.build_dependencies()
         objects_included = []
@@ -391,12 +395,13 @@ class PgSchema(PgObject):
         return self._database
 
     @staticmethod
-    def load_all_from_db(conn, database):
-        query = (
-            "SELECT oid, nspname, nspowner, nspacl, "
-            "obj_description(pg_namespace.oid, 'pg_namespace') "
-            "FROM pg_namespace"
-        )
+    def load_all_from_db(conn, database, schema_names=[]):
+        query = """
+            SELECT oid, nspname, nspowner, nspacl, 
+            obj_description(pg_namespace.oid, 'pg_namespace') 
+            FROM pg_namespace
+        """
+
 
         query_args = tuple()
 

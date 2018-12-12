@@ -32,7 +32,7 @@ def setup_command_parser(subparsers):
     )
 
     parser_extract.add_argument(
-        'schemas', nargs='+', type=str, help='list of schemas to extract'
+        'schemas', nargs='*', default=None, type=str, help='list of schemas to extract'
     )
 
     parser_extract.set_defaults(cmd=from_db_command)
@@ -46,7 +46,7 @@ def from_db_command(args):
         database = PgDatabase.load_from_db(conn)
 
     try:
-        formatters[args.format](database.to_json())
+        formatters[args.format](database.to_json(args.schemas))
     except KeyError:
         raise Exception('unsupported format: {}'.format(args.format))
 
