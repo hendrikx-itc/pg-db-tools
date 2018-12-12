@@ -27,7 +27,47 @@ sudo python3 setup.py install
 ```
 
 ## Usage
---------
+
+```
+db-schema <command> [options]
+```
+
+commands:
+* compile       compile output from schema definition
+* extract       extract schema definition from source
+* doc           documentation generation command
+* --help,-h     display help information   
+
+### compile
+
+```
+db-schema compile <output-type> <schema-filename>
+```
+
+output-types:
+* dot   Generate Graphviz DOT
+* sql   Generate SQL
+* md    Generate Markdown documentation
+* rst   Generate reStructuresText documentation
+
+### extract
+
+```
+db-schema extract <source> 
+```
+
+sources:
+* from-db   Extract from postgres database
+
+```
+db-schema extract from-db --format {yaml.json} [--owner OWNER schemas <schemas>
+```
+
+
+### doc
+
+
+## Examples
 
 Create sql from the example webshop.yaml
 ```
