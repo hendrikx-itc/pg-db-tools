@@ -8,22 +8,13 @@ description file.
 To get things started, check the prerequisites, download and install the 
 tool and then we are ready to use it.
 
-### Prerequisites
-
-We are using pip3 to install the needed libraries.
-
-```
-pip3 install PyYAML jsonschema networkx Jinja2 psycopg2-binary
-```
-
 ### Installation:
 
 Download and install the tool.
 
 ```
 git clone https://github.com/hendrikx-itc/pg-db-tools
-cd pg-db-tools
-sudo python3 setup.py install
+sudo pip3 install pg-db-tools
 ```
 
 ## Usage
