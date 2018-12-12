@@ -60,9 +60,16 @@ sources:
 ```
 
 ```
-db-schema extract from-db --format {yaml.json} [--owner OWNER schemas <schemas>
+db-schema extract from-db --format {yaml.json} [--owner OWNER] schemas <schemas>
 ```
-
+Example:
+```
+PGHOST=localhost \
+PGPORT=5432 \
+PGUSER=postgres \
+PGDATABASE=postgres \
+db-schema extract from-db --format yaml schemas public
+```
 
 ### doc
 
