@@ -126,7 +126,7 @@ class PgDatabase:
 
         database.dependencies = PgDepend.load_all_from_db(conn, database)
 
-        database.rows = PgRow.load_all_from_db(conn, database)
+        database.rows = [] # PgRow.load_all_from_db(conn, database)
         # Warning! having many rows means the process will be extremely slow!
 
         PgIndex.load_all_from_db(conn, database)

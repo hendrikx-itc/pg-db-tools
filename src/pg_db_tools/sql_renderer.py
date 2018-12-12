@@ -319,12 +319,12 @@ def render_view_sql(pg_view):
         'CREATE VIEW "{}"."{}" AS'.format(pg_view.schema.name, pg_view.name))
     yield(pg_view.view_query)
 
-    grantees = set([privilege[0] for privilege in pg_view.privs])
+    grantees = set([privilege[0] for privilege in pg_view.privileges])
 
     for grantee in grantees:
         yield('\nGRANT {} ON TABLE {}.{} TO {};'.format(
             ",".join([privilege[1]
-                      for privilege in pg_view.privs
+                      for privilege in pg_view.privileges
                       if privilege[0] == grantee]),
             quote_ident(pg_view.schema.name),
             quote_ident(pg_view.name),
@@ -408,7 +408,7 @@ def render_schema_sql(pg_schema):
                 quote_ident(pg_schema.name),
                 pg_schema.owner.name
             ))
-    for priv in pg_schema.privs:
+    for priv in pg_schema.privileges:
         yield(
             'GRANT {} ON SCHEMA {} TO {};'.format(
                 priv[1],
