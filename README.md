@@ -3,12 +3,7 @@
 Design, Create, Maintain and Document a Postgresql database using a yaml based 
 description file.
 
-## Getting Started
-
-To get things started, check the prerequisites, download and install the 
-tool and then we are ready to use it.
-
-### Installation:
+## Installation:
 
 Download and install the tool.
 
