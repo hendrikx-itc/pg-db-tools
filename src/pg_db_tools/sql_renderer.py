@@ -81,16 +81,12 @@ def render_table_sql(table):
             table.owner.name
         ))
 
-    grantees = set([privilege[0] for privilege in table.privs])
-
-    for grantee in grantees:
+    for role, grants in table.privileges:
         yield('GRANT {} ON TABLE {}.{} TO {};\n'.format(
-            ",".join([privilege[1]
-                      for privilege in table.privs
-                      if privilege[0] == grantee]),
+            grants,
             quote_ident(table.schema.name),
             quote_ident(table.name),
-            grantee
+            role
         ))
 
 
@@ -98,7 +94,7 @@ def table_defining_components(table):
     for column_data in table.columns:
         if table.inherits\
            and table.inherits.has_comparable_column(column_data):
-            # We already have this from inheritence, so don't need to define
+            # We already have this from inheritance, so don't need to define
             continue
         yield '  {}'.format(render_column_definition(column_data))
 
@@ -323,12 +319,12 @@ def render_view_sql(pg_view):
         'CREATE VIEW "{}"."{}" AS'.format(pg_view.schema.name, pg_view.name))
     yield(pg_view.view_query)
 
-    grantees = set([privilege[0] for privilege in pg_view.privs])
+    grantees = set([privilege[0] for privilege in pg_view.privileges])
 
     for grantee in grantees:
         yield('\nGRANT {} ON TABLE {}.{} TO {};'.format(
             ",".join([privilege[1]
-                      for privilege in pg_view.privs
+                      for privilege in pg_view.privileges
                       if privilege[0] == grantee]),
             quote_ident(pg_view.schema.name),
             quote_ident(pg_view.name),
@@ -412,7 +408,7 @@ def render_schema_sql(pg_schema):
                 quote_ident(pg_schema.name),
                 pg_schema.owner.name
             ))
-    for priv in pg_schema.privs:
+    for priv in pg_schema.privileges:
         yield(
             'GRANT {} ON SCHEMA {} TO {};'.format(
                 priv[1],

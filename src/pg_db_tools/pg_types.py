@@ -126,7 +126,7 @@ class PgDatabase:
 
         database.dependencies = PgDepend.load_all_from_db(conn, database)
 
-        database.rows = PgRow.load_all_from_db(conn, database)
+        database.rows = [] # PgRow.load_all_from_db(conn, database)
         # Warning! having many rows means the process will be extremely slow!
 
         PgIndex.load_all_from_db(conn, database)
@@ -181,9 +181,13 @@ class PgDatabase:
 
         return database
 
-    def to_json(self, internal_order=False):
-        objects_to_include = [object for object in self.objects
-                              if object.schema.name not in SKIPPED_SCHEMAS]
+    def to_json(self, schema_names=None, internal_order=False):
+        if schema_names is None or len(schema_names) == 0:
+            objects_to_include = [object for object in self.objects
+                                  if object.schema.name not in SKIPPED_SCHEMAS]
+        else:
+            objects_to_include = [object for object in self.objects
+                if object.schema.name not in SKIPPED_SCHEMAS and object.schema.name in schema_names]
         for object in objects_to_include:
             object.build_dependencies()
         objects_included = []
@@ -380,10 +384,10 @@ class PgSchema(PgObject):
         self.object_type = 'schema'
         self.comment = comment
         self.owner = owner
-        self.privs = []
+        self.privileges = []
 
     def get_dependencies(self):
-        return [priv[0] for priv in self.privs] +\
+        return [priv[0] for priv in self.privileges] +\
             ([self.owner] if self.owner else [])
 
     @property
@@ -391,12 +395,13 @@ class PgSchema(PgObject):
         return self._database
 
     @staticmethod
-    def load_all_from_db(conn, database):
-        query = (
-            "SELECT oid, nspname, nspowner, nspacl, "
-            "obj_description(pg_namespace.oid, 'pg_namespace') "
-            "FROM pg_namespace"
-        )
+    def load_all_from_db(conn, database, schema_names=[]):
+        query = """
+            SELECT oid, nspname, nspowner, nspacl, 
+            obj_description(pg_namespace.oid, 'pg_namespace') 
+            FROM pg_namespace
+        """
+
 
         query_args = tuple()
 
@@ -418,9 +423,9 @@ class PgSchema(PgObject):
                         grantee = database.get_role_by_name(m.group(1))
                         if grantee:
                             if 'U' in m.group(2):
-                                schema.privs.append((grantee, 'USAGE'))
+                                schema.privileges.append((grantee, 'USAGE'))
                             if 'C' in m.group(2):
-                                schema.privs.append((grantee, 'CREATE'))
+                                schema.privileges.append((grantee, 'CREATE'))
             if owner and owner in database.roles:
                 schema.owner = database.roles[owner]
             return schema
@@ -440,7 +445,7 @@ class PgSchema(PgObject):
         if data.get('owner'):
             schema.owner = database.get_role_by_name(data.get('owner'))
         for right in data.get('privileges', []):
-            schema.privs.append((database.get_role_by_name(right['role']),
+            schema.privileges.append((database.get_role_by_name(right['role']),
                                  right['privilege']))
         return schema
 
@@ -502,15 +507,15 @@ class PgSchema(PgObject):
         arguments = [('name', self.name)]
         if self.comment:
             arguments.append(('comment', self.comment))
-        if self.privs:
-            grantees = set([priv[0] for priv in self.privs])
+        if self.privileges:
+            grantees = set([priv[0] for priv in self.privileges])
             arguments.append((
                 'privileges',
                 [
                     OrderedDict([
                         ('role', grantee.name),
                         ('privilege', ",".join([priv[1]
-                                                for priv in self.privs
+                                                for priv in self.privileges
                                                 if priv[0] == grantee]))
                     ])
                     for grantee in grantees
@@ -536,16 +541,17 @@ class PgTable(PgObject):
         self.indexes = []
         self.object_type = 'table'
         self.owner = None
-        self.privs = []
+        self.privileges = []
         self.persistence = 'permanent'
 
     def __str__(self):
         return '"{}"."{}"'.format(self.schema.name, self.name)
 
     def get_dependencies(self):
-        dependencies = [key.ref_table for key in self.foreign_keys] +\
-                       [self.database.get_role_by_name(priv[0])
-                        for priv in self.privs]
+        dependencies = [
+            key.ref_table for key in self.foreign_keys] + [self.database.get_role_by_name(priv[0])
+            for priv in self.privileges
+        ]
         if self.inherits:
             dependencies.append(self.inherits)
         if self.owner:
@@ -698,9 +704,10 @@ class PgTable(PgObject):
             for index in data['indexes']:
                 table.indexes.append(PgIndex.load(table, index))
 
-        if 'privileges' in data:
-            for priv in data['privileges']:
-                table.privs.append((priv['role'], priv['privilege']))
+        table.privileges = [
+            (privilege['role'], privilege['privilege'])
+            for privilege in data.get('privileges', [])
+        ]
 
         schema.tables.append(table)
 
@@ -767,15 +774,15 @@ class PgTable(PgObject):
                     self.owner.name
                 ))
 
-            if self.privs:
-                grantees = set([priv[0] for priv in self.privs])
+            if self.privileges:
+                grantees = set([priv[0] for priv in self.privileges])
                 attributes.append((
                     'privileges',
                     [
                         OrderedDict([
                             ('role', grantee),
                             ('privilege', ",".join([priv[1]
-                                                    for priv in self.privs
+                                                    for priv in self.privileges
                                                     if priv[0] == grantee]))
                         ])
                         for grantee in grantees
@@ -2132,12 +2139,12 @@ class PgView(PgObject):
         self.view_query = view_query
         self.object_type = 'view'
         self.owner = None
-        self.privs = []
+        self.privileges = []
 
     def get_dependencies(self):
         return self.database.find_dependencies(self.view_query) + [
             self.database.get_role_by_name(priv[0])
-            for priv in self.privs
+            for priv in self.privileges
         ] + ([self.owner] if self.owner else [])
 
     @staticmethod
@@ -2155,7 +2162,7 @@ class PgView(PgObject):
 
         if 'privileges' in data:
             for priv in data['privileges']:
-                pg_view.privs.append((priv['role'], priv['privilege']))
+                pg_view.privileges.append((priv['role'], priv['privilege']))
 
         schema.views.append(pg_view)
 
@@ -2215,7 +2222,7 @@ class PgView(PgObject):
             table = database.get_schema_by_name(schemaname).get_table(
                 tablename)
             if table:
-                table.privs.append((rolename, priv))
+                table.privileges.append((rolename, priv))
 
         return views
 
@@ -2229,15 +2236,15 @@ class PgView(PgObject):
         if self.owner:
             attributes.append(('owner', self.owner.name))
 
-        if self.privs:
-            grantees = set([priv[0] for priv in self.privs])
+        if self.privileges:
+            grantees = set([priv[0] for priv in self.privileges])
             attributes.append((
                 'privileges',
                 [
                     OrderedDict([
                         ('role', grantee),
                         ('privilege', ",".join([priv[1]
-                                                for priv in self.privs
+                                                for priv in self.privileges
                                                 if priv[0] == grantee]))
                     ])
                     for grantee in grantees
