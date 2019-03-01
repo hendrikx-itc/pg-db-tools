@@ -21,6 +21,12 @@ def render_table_sql(table):
     options = []
     post_options = []
 
+    if table.partitiontype:
+        post_options.append('PARTITION BY {} ({})'.format(
+            table.partitiontype.upper(),
+            ','.join(table.partitioncolumns)
+        ))
+
     if table.inherits:
         post_options.append('INHERITS ({}.{})'.format(
             quote_ident(table.inherits.schema.name),

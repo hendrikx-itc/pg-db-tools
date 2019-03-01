@@ -543,6 +543,8 @@ class PgTable(PgObject):
         self.owner = None
         self.privileges = []
         self.persistence = 'permanent'
+        self.partitiontype = None
+        self.partitioncolumns = []
 
     def __str__(self):
         return '"{}"."{}"'.format(self.schema.name, self.name)
@@ -595,6 +597,9 @@ class PgTable(PgObject):
             row[0]: table_from_row(row)
             for row in rows
         }
+
+        
+
 
         for table in tables.values():
             table.schema.tables.append(table)
@@ -652,6 +657,23 @@ class PgTable(PgObject):
             if child_oid in tables and parent_oid in tables:
                 tables[child_oid].inherits = tables[parent_oid]
 
+
+        query = 'SELECT partrelid, partstrat, partattrs FROM pg_class'
+        query_args = tuple()
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query, query_args)
+
+            rows = cursor.fetchall()
+
+        for row in rows:
+            if row[0] in tables:
+                tables[row[0]].partitiontype = 'range' if row[1] == 'r' else 'list'
+                # -1 on the next line because postgres uses 1-based counting and
+                # Python 0-based counting
+                tables[row[0]].partitioncolumns = [tables[row[0]].columns[row[2] -1]]
+
+
         return tables
 
     @staticmethod
@@ -708,6 +730,10 @@ class PgTable(PgObject):
             (privilege['role'], privilege['privilege'])
             for privilege in data.get('privileges', [])
         ]
+
+        if 'partition' in data:
+            table.partitiontype = data['partition']['type']
+            table.partitioncolumns = [column['name'] for column in data['partition']['columns']]
 
         schema.tables.append(table)
 
@@ -787,6 +813,14 @@ class PgTable(PgObject):
                         ])
                         for grantee in grantees
                     ]
+                ))
+
+            if self.partitiontype:
+                attributes.append((
+                    'partition',
+                    [OrderedDict([('type', self.partitiontype),
+                                  ('columns', [OrderedDict([('name', column)]) for column in self.partitioncolumns])
+                    ])]
                 ))
 
             return OrderedDict(attributes)

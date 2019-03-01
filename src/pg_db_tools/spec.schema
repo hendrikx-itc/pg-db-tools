@@ -277,6 +277,28 @@
                             "required": ["name", "schema"],
                             "additionalProperties": false
                         },
+			"partition": {
+			    "type": "object",
+			    "properties": {
+			        "type": {
+				    "type": "string"
+				},
+				"columns": {
+				    "type": "array",
+				    "items": {
+				        "type": "object",
+					"properties": {
+					    "name": {
+					        "type": "string"
+					    }
+					},
+					"required": ["name"]
+				    }
+				}
+			    },
+			    "required": ["type", "columns"],
+			    "additionalProperties": false
+			},
                         "foreign_keys": {
                             "type": "array",
                             "items": {
