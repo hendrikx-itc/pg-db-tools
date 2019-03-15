@@ -28,6 +28,9 @@ def setup_command_parser(subparsers):
         '--if-not-exists', default=False, action='store_true',
         help='create database objects only if they don''t exist yet'
     )
+    parser_sql.add_argument(
+        '--function', help='select specific function'
+    )
     parser_sql.add_argument('--out-encoding', help='encoding for output file')
 
     parser_sql.set_defaults(cmd=sql_command)
