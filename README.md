@@ -1,6 +1,6 @@
 # PostgreSQL Database Tools
 
-Design, Create, Maintain and Document a Postgresql database using a yaml based 
+Design, Create, Maintain and Document a Postgresql database using a yaml based
 description file.
 
 ## Installation:
@@ -21,7 +21,7 @@ commands:
     compile       compile output from schema definition
     extract       extract schema definition from source
     doc           documentation generation command
-    --help,-h     display help information   
+    --help,-h     display help information
 ```
 
 ### compile
@@ -39,7 +39,7 @@ output-types:
 ### extract
 
 ```
-db-schema extract <source> 
+db-schema extract <source>
 
 sources:
     from-db   Extract from postgres database
@@ -49,7 +49,7 @@ sources:
 db-schema extract from-db --format {yaml.json} [--owner OWNER] [schemas]
 ```
 
-schemas: 
+schemas:
 * Multiple schemas can be supplied
 * If no schema is supplied, all schemas are returned
 
@@ -135,6 +135,6 @@ See the schema file [here](https://github.com/hendrikx-itc/pg-db-tools/blob/mast
 ## Note
 
 
-This tool is specifically not meant as a cross database toolset, because 
-that usually causes compatibility headaches and multiple partially supported 
+This tool is specifically not meant as a cross database toolset, because
+that usually causes compatibility headaches and multiple partially supported
 database engines.

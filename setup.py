@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
-from distutils.core import setup
+import setuptools
 
-setup(
+with open("README.md", "r") as fh:
+    long_description = fh.read()
+
+
+setuptools.setup(
     name='pg-db-tools',
     version='1.0.1',
     description='PostgreSQL database schema design and maintenance tools',
     author='Alfred Blokland',
     author_email='alfred.blokland@hendrikx-itc.nl',
     url='http://www.hendrikx-itc.nl',
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     packages=[
         'pg_db_tools',
         'pg_db_tools.commands'
