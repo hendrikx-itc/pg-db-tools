@@ -3,13 +3,17 @@
 Design, Create, Maintain and Document a Postgresql database using a yaml based
 description file.
 
-## Installation:
+## Installation
 
-Download and install the tool.
-
+Install from PyPi:
 ```
-git clone https://github.com/hendrikx-itc/pg-db-tools
-sudo pip3 install pg-db-tools
+$ pip3 install pg-db-tools
+```
+
+Install from GitHub:
+```
+$ git clone https://github.com/hendrikx-itc/pg-db-tools
+$ sudo pip3 install pg-db-tools
 ```
 
 ## Usage
@@ -121,7 +125,6 @@ Schema ``public``
 =================
 ```
 
-
 ## Description Format
 
 One of the main components of the toolset is a database schema description
@@ -133,7 +136,6 @@ See an example [here](https://github.com/hendrikx-itc/pg-db-tools/blob/master/ex
 See the schema file [here](https://github.com/hendrikx-itc/pg-db-tools/blob/master/src/pg_db_tools/spec.schema)
 
 ## Note
-
 
 This tool is specifically not meant as a cross database toolset, because
 that usually causes compatibility headaches and multiple partially supported
