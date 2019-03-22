@@ -20,7 +20,7 @@
 # -- Project information -----------------------------------------------------
 
 project = 'pg-db-tools'
-copyright = '2019, Alfred Blokland'
+copyright = '2019, Hendrikx ITC'
 author = 'Alfred Blokland'
 
 # The short X.Y version

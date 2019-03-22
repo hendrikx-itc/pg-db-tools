@@ -9,7 +9,9 @@ Welcome to pg-db-tools's documentation!
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
-
+.. automodule:: pg_db_tools
+   :members:
+   :undoc-members:
 
 
 Indices and tables
