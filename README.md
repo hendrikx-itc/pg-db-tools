@@ -3,6 +3,8 @@
 Design, create, maintain and document a PostgreSQL databases using a yaml based
 descriptions.
 
+Read the [documentation on readthedocs.io](https://pg-db-tools.readthedocs.io/en/latest/)
+
 ## Installation
 
 Install from PyPi:
