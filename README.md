@@ -1,7 +1,7 @@
 # PostgreSQL Database Tools
 
-Design, Create, Maintain and Document a Postgresql database using a yaml based
-description file.
+Design, create, maintain and document a PostgreSQL databases using a yaml based
+descriptions.
 
 ## Installation
 
