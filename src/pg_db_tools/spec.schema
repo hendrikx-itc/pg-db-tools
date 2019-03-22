@@ -1,6 +1,8 @@
 {
     "type": "object",
-    "required": ["objects"],
+    "required": [
+        "objects"
+    ],
     "properties": {
         "extensions": {
             "type": "array",
@@ -14,20 +16,48 @@
             "items": {
                 "type": "object",
                 "oneOf": [
-                    { "$ref": "#/definitions/table" },
-                    { "$ref": "#/definitions/function" },
-		    { "$ref": "#/definitions/schema" },
-		    { "$ref": "#/definitions/role" },
-		    { "$ref": "#/definitions/enum" },
-		    { "$ref": "#/definitions/trigger" },
-		    { "$ref": "#/definitions/cast" },
-		    { "$ref": "#/definitions/operator" },
-		    { "$ref": "#/definitions/sequence" },
-		    { "$ref": "#/definitions/aggregate" },
-		    { "$ref": "#/definitions/query" },
-		    { "$ref": "#/definitions/composite" },
-		    { "$ref": "#/definitions/view" },
-		    { "$ref": "#/definitions/row" }
+                    {
+                        "$ref": "#/definitions/table"
+                    },
+                    {
+                        "$ref": "#/definitions/function"
+                    },
+                    {
+                        "$ref": "#/definitions/schema"
+                    },
+                    {
+                        "$ref": "#/definitions/role"
+                    },
+                    {
+                        "$ref": "#/definitions/enum"
+                    },
+                    {
+                        "$ref": "#/definitions/trigger"
+                    },
+                    {
+                        "$ref": "#/definitions/cast"
+                    },
+                    {
+                        "$ref": "#/definitions/operator"
+                    },
+                    {
+                        "$ref": "#/definitions/sequence"
+                    },
+                    {
+                        "$ref": "#/definitions/aggregate"
+                    },
+                    {
+                        "$ref": "#/definitions/query"
+                    },
+                    {
+                        "$ref": "#/definitions/composite"
+                    },
+                    {
+                        "$ref": "#/definitions/view"
+                    },
+                    {
+                        "$ref": "#/definitions/row"
+                    }
                 ]
             },
             "additionalItems": false
@@ -36,51 +66,60 @@
     "additionalProperties": false,
     "definitions": {
         "schema": {
-	    "type": "object",
-	    "required": ["schema"],
-	    "additionalProperties": false,
-	    "properties": {
+            "type": "object",
+            "required": [
+                "schema"
+            ],
+            "additionalProperties": false,
+            "properties": {
                 "schema": {
-                    "type": "object",   
- 	            "properties": {
-	                "name": {
-	                    "type": "string",
-		            "description": "Name of schema"
-		        },
-		        "comment": {
-		            "type": "string"
-		        },
-		        "privileges": {
-		            "type": "array",
-		            "items": {
-		                "type": "object",
-		                "properties": {
-		                    "role": {
-			                "type": "string",
-			                "description": "the role to which the privilege applies"
-			            },
-			            "privilege": {
-			                "type": "string",
-				        "description": "comma-separated list of privileges granted"
-		                    }
-			        },
-				"required": ["role", "privilege"],
-				"additionalProperties": false
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "Name of schema"
+                        },
+                        "comment": {
+                            "type": "string"
+                        },
+                        "privileges": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "role": {
+                                        "type": "string",
+                                        "description": "the role to which the privilege applies"
+                                    },
+                                    "privilege": {
+                                        "type": "string",
+                                        "description": "comma-separated list of privileges granted"
+                                    }
+                                },
+                                "required": [
+                                    "role",
+                                    "privilege"
+                                ],
+                                "additionalProperties": false
                             }
                         },
-			"owner": {
-			    "type": "string",
-			    "description": "role that owns the schema"
-			}
-		    },
-                    "required": ["name"],
-	            "additionalProperties": false
-	        }
+                        "owner": {
+                            "type": "string",
+                            "description": "role that owns the schema"
+                        }
+                    },
+                    "required": [
+                        "name"
+                    ],
+                    "additionalProperties": false
+                }
             }
         },
         "enum": {
             "type": "object",
-            "required": ["enum_type"],
+            "required": [
+                "enum_type"
+            ],
             "properties": {
                 "enum_type": {
                     "type": "object",
@@ -101,7 +140,11 @@
                             "additionalItems": false
                         }
                     },
-		    "required": ["name", "schema", "labels"],
+                    "required": [
+                        "name",
+                        "schema",
+                        "labels"
+                    ],
                     "additionalProperties": false
                 }
             },
@@ -112,70 +155,79 @@
             "properties": {
                 "function": {
                     "type": "object",
-		    "properties": {
-		        "name": {
-			     "type": "string"
-			},
-			"schema": {
-			     "type": "string"
-			},
-			"description": {
-			     "type": "string"
-			},
-			"return_type": {
-			     "type": "string"
-			},
-			"returns_set": {
-			     "type": "boolean",
-			     "default": false
-			},
-			"language": {
-			     "type": "string"
-			},
-			"volatility": {
-			     "type": "string",
-			     "default": "volatile"
-			},
-			"strict": {
-			     "type": "boolean",
-			     "default": false
-			},
-			"secdef": {
-			     "type": "boolean",
-			     "default": false
-			},
-			"arguments": {
-			    "type": "array",
-			    "items": {
-			        "type": "object",
-		     	        "properties": {
-				    "name": {
-			                "type": "string"
-				    },
-				    "data_type": {
-				        "type": "string"
-				    },
-				    "mode": {
-				        "type": "string"
-				    },
-				    "default": {
-				        "type": "string"
-				    }
-			        },
-				"required": ["data_type"],
-				"additionalProperties": false
-			    },
-			    "additionalItems": false
-			},
-			"source": {
-			    "type": "string"
-			}
-		    },
-		    "required": ["name", "schema", "return_type", "source"],
-		    "additionalProperties": false
+                    "properties": {
+                        "name": {
+                            "type": "string"
+                        },
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": {
+                            "type": "string"
+                        },
+                        "return_type": {
+                            "type": "string"
+                        },
+                        "returns_set": {
+                            "type": "boolean",
+                            "default": false
+                        },
+                        "language": {
+                            "type": "string"
+                        },
+                        "volatility": {
+                            "type": "string",
+                            "default": "volatile"
+                        },
+                        "strict": {
+                            "type": "boolean",
+                            "default": false
+                        },
+                        "secdef": {
+                            "type": "boolean",
+                            "default": false
+                        },
+                        "arguments": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "data_type": {
+                                        "type": "string"
+                                    },
+                                    "mode": {
+                                        "type": "string"
+                                    },
+                                    "default": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "data_type"
+                                ],
+                                "additionalProperties": false
+                            },
+                            "additionalItems": false
+                        },
+                        "source": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "name",
+                        "schema",
+                        "return_type",
+                        "source"
+                    ],
+                    "additionalProperties": false
                 }
             },
-	    "required": ["function"],
+            "required": [
+                "function"
+            ],
             "additionalProperties": false
         },
         "column": {
@@ -189,19 +241,24 @@
                 },
                 "nullable": {
                     "type": "boolean",
-		    "default": true,
+                    "default": true,
                     "description": "Can this column contain null values?"
                 },
                 "description": {
                     "type": "string"
                 }
             },
-            "required": ["name", "data_type"],
+            "required": [
+                "name",
+                "data_type"
+            ],
             "additionalProperties": false
         },
         "table": {
             "type": "object",
-            "required": ["table"],
+            "required": [
+                "table"
+            ],
             "properties": {
                 "table": {
                     "type": "object",
@@ -219,33 +276,36 @@
                         },
                         "persistence": {
                             "type": "string",
-			    "default": "permanent",
+                            "default": "permanent",
                             "description": "Degree of persistence; one of permanent, unlogged or temporary"
                         },
                         "columns": {
                             "type": "array",
                             "items": {
-				"type": "object",
-				"properties": {
-				    "name": {
-					"type": "string"
-				    },
-				    "data_type": {
-					"type": "string"
-				    },
-				    "nullable": {
-					"type": "boolean"
-				    },
-				    "description": {
-					"type": "string"
-				    },
-				    "default": {
-					"type": "string"
-				    }
-				},
-				"required": ["name", "data_type"],
-				"additionalProperties": false
-			    },
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "data_type": {
+                                        "type": "string"
+                                    },
+                                    "nullable": {
+                                        "type": "boolean"
+                                    },
+                                    "description": {
+                                        "type": "string"
+                                    },
+                                    "default": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "name",
+                                    "data_type"
+                                ],
+                                "additionalProperties": false
+                            },
                             "additionalItems": false
                         },
                         "primary_key": {
@@ -266,44 +326,55 @@
                         "inherits": {
                             "type": "object",
                             "description": "Table from which the table inherits",
-			    "properties": {
-				"name": {
+                            "properties": {
+                                "name": {
                                     "type": "string"
-				},
-				"schema": {
+                                },
+                                "schema": {
                                     "type": "string"
-				}
+                                }
                             },
-                            "required": ["name", "schema"],
+                            "required": [
+                                "name",
+                                "schema"
+                            ],
                             "additionalProperties": false
                         },
-			"partition": {
-			    "type": "object",
-			    "properties": {
-			        "type": {
-				    "type": "string"
-				},
-				"columns": {
-				    "type": "array",
-				    "items": {
-				        "type": "object",
-					"properties": {
-					    "name": {
-					        "type": "string"
-					    }
-					},
-					"required": ["name"]
-				    }
-				}
-			    },
-			    "required": ["type", "columns"],
-			    "additionalProperties": false
-			},
+                        "partition": {
+                            "type": "object",
+                            "properties": {
+                                "type": {
+                                    "type": "string"
+                                },
+                                "columns": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "name"
+                                        ]
+                                    }
+                                }
+                            },
+                            "required": [
+                                "type",
+                                "columns"
+                            ],
+                            "additionalProperties": false
+                        },
                         "foreign_keys": {
                             "type": "array",
                             "items": {
                                 "type": "object",
-                                "required": ["columns", "references"],
+                                "required": [
+                                    "columns",
+                                    "references"
+                                ],
                                 "properties": {
                                     "columns": {
                                         "type": "array",
@@ -314,11 +385,17 @@
                                     },
                                     "references": {
                                         "type": "object",
-                                        "required": ["table", "columns"],
+                                        "required": [
+                                            "table",
+                                            "columns"
+                                        ],
                                         "properties": {
                                             "table": {
                                                 "type": "object",
-                                                "required": ["schema", "name"],
+                                                "required": [
+                                                    "schema",
+                                                    "name"
+                                                ],
                                                 "properties": {
                                                     "schema": {
                                                         "type": "string"
@@ -337,15 +414,15 @@
                                         },
                                         "additionalProperties": false
                                     },
-				    "name": {
-				        "type": "string"
-				    },
-				    "on_update": {
-				        "type": "string"
-				    },
-				    "on_delete": {
-				        "type": "string"
-				    }
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "on_update": {
+                                        "type": "string"
+                                    },
+                                    "on_delete": {
+                                        "type": "string"
+                                    }
                                 }
                             },
                             "additionalItems": false
@@ -356,40 +433,45 @@
                                 "type": "object",
                                 "properties": {
                                     "name": {
-					"type": "string"
-				    },
-				    "unique": {
-					"type": "boolean",
-					"default": false
-				    },
-				    "definition": {
-					"type": "string"
-				    }
+                                        "type": "string"
+                                    },
+                                    "unique": {
+                                        "type": "boolean",
+                                        "default": false
+                                    },
+                                    "definition": {
+                                        "type": "string"
+                                    }
                                 },
-				"required": ["name", "definition"],
-				"additionalProperties": false
+                                "required": [
+                                    "name",
+                                    "definition"
+                                ],
+                                "additionalProperties": false
                             }
                         },
                         "owner": {
                             "type": "string",
                             "description": "Role name of the owner"
                         },
-			"checks": {
-			    "type": "array",
-			    "items": {
-			         "type": "object",
-				 "properties": {
-				      "name":  {
-				          "type": "string"
-			  	      },
-				      "expression": {
-				          "type": "string"
-				      }
-				 },
-				 "required": ["expression"],
-				 "additionalProperties": false
-			    }
-			},
+                        "checks": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "expression": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "expression"
+                                ],
+                                "additionalProperties": false
+                            }
+                        },
                         "privileges": {
                             "type": "array",
                             "items": {
@@ -397,18 +479,25 @@
                                 "properties": {
                                     "role": {
                                         "type": "string"
-         			    },
-				    "privilege": {
-				        "type": "string"
-				    }
-			        },
-			        "required": ["role", "privilege"],
-				"additionalProperties": false
-			    },
-			    "additionalItems": false
-			}
+                                    },
+                                    "privilege": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "role",
+                                    "privilege"
+                                ],
+                                "additionalProperties": false
+                            },
+                            "additionalItems": false
+                        }
                     },
-                    "required": ["name", "schema", "columns"],
+                    "required": [
+                        "name",
+                        "schema",
+                        "columns"
+                    ],
                     "additionalProperties": false
                 }
             },
@@ -416,460 +505,553 @@
         },
         "role": {
             "type": "object",
-            "required": ["role"],
+            "required": [
+                "role"
+            ],
             "properties": {
                 "role": {
                     "type": "object",
                     "properties": {
-		        "name": {
-			    "type": "string"
-			},
-			"super": {
-			    "type": "boolean",
-			    "default": false,
-			    "description": "Does the role have superuser privileges?"
-			},
-			"inherit": {
-			    "type": "boolean",
-			    "default": true,
-			    "description": "Does the role automatically inherit privileges?"
-			},
-			"createrole": {
-			    "type": "boolean",
-			    "default": false,
-			    "description": "Is the role allowed to create more roles?"
-			},
-			"createdb": {
-			    "type": "boolean",
-			    "default": false,
-			    "description": "Is the role allowed to create databases?"
-			},
-			"login": {
-			    "type": "boolean",
-			    "default": false,
-			    "description": "Can the role login?"
-			},
-			"memberships": {
-			    "type": "array",
-			    "description": "Other roles the role is a member of",
-			    "items": {
-			         "type": "string"
-			    },
-			    "additionalItems": false
-			},
-			"description": {
-			    "type": "string"
-			}
-		    },
-		    "required": ["name"],
-		    "additionalProperties": false
-		}
-	    }
-	},
+                        "name": {
+                            "type": "string"
+                        },
+                        "super": {
+                            "type": "boolean",
+                            "default": false,
+                            "description": "Does the role have superuser privileges?"
+                        },
+                        "inherit": {
+                            "type": "boolean",
+                            "default": true,
+                            "description": "Does the role automatically inherit privileges?"
+                        },
+                        "createrole": {
+                            "type": "boolean",
+                            "default": false,
+                            "description": "Is the role allowed to create more roles?"
+                        },
+                        "createdb": {
+                            "type": "boolean",
+                            "default": false,
+                            "description": "Is the role allowed to create databases?"
+                        },
+                        "login": {
+                            "type": "boolean",
+                            "default": false,
+                            "description": "Can the role login?"
+                        },
+                        "memberships": {
+                            "type": "array",
+                            "description": "Other roles the role is a member of",
+                            "items": {
+                                "type": "string"
+                            },
+                            "additionalItems": false
+                        },
+                        "description": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "name"
+                    ],
+                    "additionalProperties": false
+                }
+            }
+        },
         "trigger": {
             "type": "object",
-            "required": ["trigger"],
-	    "additionalProperties": false,
+            "required": [
+                "trigger"
+            ],
+            "additionalProperties": false,
             "properties": {
                 "trigger": {
                     "type": "object",
                     "properties": {
-		        "table": {
-			    "type": "object",
-			    "properties": {
-			        "schema": {
-				    "type": "string"
-				},
-				"name": {
-				    "type": "string"
-			 	}
-			    },
-			    "required": ["schema", "name"],
-			    "additionalProperties": false
-			},
-			"name": {
-			    "type": "string"
-			},
-			"function": {
-			    "type": "object",
-			    "properties": {
-			        "schema": {
-				    "type": "string"
-				},
-				"name": {
-				    "type": "string"
-			 	}
-			    },
-			    "required": ["schema", "name"],
-			    "additionalProperties": false
-			},
-			"when": {
-			    "type": "string"
-			},
-			"events": {
-			    "type": "array",
-			    "items": {
-			        "type": "string"
-			    },
-			    "additionalItems": false
-		        },
-			"affecteach": {
-			    "type": "string"
-		        }
-		    },
-		    "required": ["table", "name", "function", "events"],
-		    "additionalProperties": false
-		}
-	    }
-	},
-	"cast": {
-	    "type": "object",
-	    "required": ["cast"],
-	    "additionalProperties": false,
-	    "properties": {
-		"cast": {
-		    "type": "object",
-		    "properties": {
-			"source": {
-			    "type": "object",
-			    "properties": {
-				"schema": {
-				    "type": "string"
-				},
-				"name": {
-				    "type": "string"
-				}
-			    },
-			    "required": ["schema", "name"],
-			    "additionalProperties": false
-			},
-			"target": {
-			    "type": "object",
-			    "properties": {
-				"schema": {
-				    "type": "string"
-				},
-				"name": {
-				    "type": "string"
-				}
-			    },
-			    "required": ["schema", "name"],
-			    "additionalProperties": false
-			},
-			"function": {
-			    "type": "object",
-			    "properties": {
-				"schema": {
-				    "type": "string"
-				},
-				"name": {
-				    "type": "string"
-				}
-			    },
-			    "required": ["schema", "name"],
-			    "additionalProperties": false
-			},
-			"implicit": {
-			    "type": "boolean"
-			}
-		    },
-		    "required": ["source", "target", "function"],
-		    "additionalProperties": false
-		}
-	    }
-	},
+                        "table": {
+                            "type": "object",
+                            "properties": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "schema",
+                                "name"
+                            ],
+                            "additionalProperties": false
+                        },
+                        "name": {
+                            "type": "string"
+                        },
+                        "function": {
+                            "type": "object",
+                            "properties": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "schema",
+                                "name"
+                            ],
+                            "additionalProperties": false
+                        },
+                        "when": {
+                            "type": "string"
+                        },
+                        "events": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "additionalItems": false
+                        },
+                        "affecteach": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "table",
+                        "name",
+                        "function",
+                        "events"
+                    ],
+                    "additionalProperties": false
+                }
+            }
+        },
+        "cast": {
+            "type": "object",
+            "required": [
+                "cast"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "cast": {
+                    "type": "object",
+                    "properties": {
+                        "source": {
+                            "type": "object",
+                            "properties": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "schema",
+                                "name"
+                            ],
+                            "additionalProperties": false
+                        },
+                        "target": {
+                            "type": "object",
+                            "properties": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "schema",
+                                "name"
+                            ],
+                            "additionalProperties": false
+                        },
+                        "function": {
+                            "type": "object",
+                            "properties": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "schema",
+                                "name"
+                            ],
+                            "additionalProperties": false
+                        },
+                        "implicit": {
+                            "type": "boolean"
+                        }
+                    },
+                    "required": [
+                        "source",
+                        "target",
+                        "function"
+                    ],
+                    "additionalProperties": false
+                }
+            }
+        },
         "operator": {
             "type": "object",
-            "required": ["operator"],
-	    "additionalProperties": false,
+            "required": [
+                "operator"
+            ],
+            "additionalProperties": false,
             "properties": {
                 "operator": {
                     "type": "object",
-		    "properties": {
-			"name": {
-			    "type": "string"
-			},
-			"code": {
-			    "type": "string"
-			},
-			"left": {
-			    "type": "object",
-			    "properties": {
-				"schema": {
-				    "type": "string"
-				},
-				"name": {
-				    "type": "string"
-				}
-			    },
-			    "required": ["schema", "name"],
-			    "additionalProperties": false
-			},
-			"right": {
-			    "type": "object",
-			    "properties": {
-				"schema": {
-				    "type": "string"
-				},
-				"name": {
-				    "type": "string"
-				}
-			    },
-			    "required": ["schema", "name"],
-			    "additionalProperties": false
-			}
-		    },
-		    "required": ["name", "code"],
-		    "additionalProperties": false
-		}
-	    }
-	},
+                    "properties": {
+                        "name": {
+                            "type": "string"
+                        },
+                        "code": {
+                            "type": "string"
+                        },
+                        "left": {
+                            "type": "object",
+                            "properties": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "schema",
+                                "name"
+                            ],
+                            "additionalProperties": false
+                        },
+                        "right": {
+                            "type": "object",
+                            "properties": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "schema",
+                                "name"
+                            ],
+                            "additionalProperties": false
+                        }
+                    },
+                    "required": [
+                        "name",
+                        "code"
+                    ],
+                    "additionalProperties": false
+                }
+            }
+        },
         "sequence": {
             "type": "object",
-            "required": ["sequence"],
-	    "additionalProperties": false,
+            "required": [
+                "sequence"
+            ],
+            "additionalProperties": false,
             "properties": {
                 "sequence": {
                     "type": "object",
                     "properties": {
-			"name": {
-			    "type": "string"
-			},
-			"schema": {
-			    "type": "string"
-			},
-			"startvalue": {
-			    "type": "integer"
-			},
-			"minimumvalue": {
-			    "type": "integer"
-			},
-			"maximumvalue": {
-			    "type": "integer"
-			},
-			"increment": {
-			    "type": "integer"
-			}
-		    },
-		    "required": ["name", "schema"],
-		    "additionalProperties": false
-		}
-	    }
-	},
+                        "name": {
+                            "type": "string"
+                        },
+                        "schema": {
+                            "type": "string"
+                        },
+                        "startvalue": {
+                            "type": "integer"
+                        },
+                        "minimumvalue": {
+                            "type": "integer"
+                        },
+                        "maximumvalue": {
+                            "type": "integer"
+                        },
+                        "increment": {
+                            "type": "integer"
+                        }
+                    },
+                    "required": [
+                        "name",
+                        "schema"
+                    ],
+                    "additionalProperties": false
+                }
+            }
+        },
         "query": {
             "type": "object",
-            "required": ["query"],
-	    "additionalProperties": false,
+            "required": [
+                "query"
+            ],
+            "additionalProperties": false,
             "properties": {
                 "query": {
                     "type": "object",
                     "properties": {
-			"query": {
-			    "type": "string"
-			},
-			"select": {
-			    "type": "boolean",
-			    "default": true
-			},
-			"from": {
-			    "type": "object",
-			    "properties": {
-				"schema": {
-				    "type": "string"
-				},
-				"table": {
-				    "type": "string"
-				}
-			    },
-			    "required": ["schema", "table"],
-			    "additionalProperties": false
-			}
-		    },
-		    "required": ["query"],
-		    "additionalProperties": false
-		}
-	    }
-	},
+                        "query": {
+                            "type": "string"
+                        },
+                        "select": {
+                            "type": "boolean",
+                            "default": true
+                        },
+                        "from": {
+                            "type": "object",
+                            "properties": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "table": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "schema",
+                                "table"
+                            ],
+                            "additionalProperties": false
+                        }
+                    },
+                    "required": [
+                        "query"
+                    ],
+                    "additionalProperties": false
+                }
+            }
+        },
         "aggregate": {
             "type": "object",
-            "required": ["aggregate"],
-	    "additionalProperties": false,
+            "required": [
+                "aggregate"
+            ],
+            "additionalProperties": false,
             "properties": {
                 "aggregate": {
                     "type": "object",
                     "properties": {
-			"name": {
-			    "type": "string"
-			},
-			"schema": {
-			    "type": "string"
-			},
-			"sfunc": {
-			    "type": "string"
-			},
-			"stype": {
-			    "type": "string"
-			},
-			"arguments": {
-			    "type": "array",
-			    "items": {
-				"type": "object",
-				"properties": {
-				    "name": {
-					"type": "string"
-				    },
-				    "data_type": {
-					"type": "string"
-				    },
-				    "mode": {
-					"type": "string"
-				    },
-				    "default": {
-					"type": "string"
-				    }
-				},
-				"required": ["data_type"],
-				"additionalProperties": false
-			    },
-			    "additionalItems": false
-			}
-		    },
-		    "required": ["name", "schema", "sfunc", "stype"],
-		    "additionalProperties": false
-		}
-	    }
-	},
+                        "name": {
+                            "type": "string"
+                        },
+                        "schema": {
+                            "type": "string"
+                        },
+                        "sfunc": {
+                            "type": "string"
+                        },
+                        "stype": {
+                            "type": "string"
+                        },
+                        "arguments": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "data_type": {
+                                        "type": "string"
+                                    },
+                                    "mode": {
+                                        "type": "string"
+                                    },
+                                    "default": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "data_type"
+                                ],
+                                "additionalProperties": false
+                            },
+                            "additionalItems": false
+                        }
+                    },
+                    "required": [
+                        "name",
+                        "schema",
+                        "sfunc",
+                        "stype"
+                    ],
+                    "additionalProperties": false
+                }
+            }
+        },
         "composite": {
             "type": "object",
-            "required": ["composite_type"],
-	    "additionalProperties": false,
+            "required": [
+                "composite_type"
+            ],
+            "additionalProperties": false,
             "properties": {
                 "composite_type": {
                     "type": "object",
                     "properties": {
-			"name": {
-			    "type": "string"
-			},
-			"schema": {
-			    "type": "string"
-			},
+                        "name": {
+                            "type": "string"
+                        },
+                        "schema": {
+                            "type": "string"
+                        },
                         "columns": {
                             "type": "array",
                             "items": {
-				"type": "object",
-				"properties": {
-				    "name": {
-					"type": "string"
-				    },
-				    "data_type": {
-					"type": "string"
-				    },
-				    "nullable": {
-					"type": "boolean",
-					"default": true
-				    },
-				    "description": {
-					"type": "string"
-				    },
-				    "default": {
-					"type": "string"
-				    }
-				},
-				"required": ["name", "data_type"],
-				"additionalProperties": false
-			    },
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "data_type": {
+                                        "type": "string"
+                                    },
+                                    "nullable": {
+                                        "type": "boolean",
+                                        "default": true
+                                    },
+                                    "description": {
+                                        "type": "string"
+                                    },
+                                    "default": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "name",
+                                    "data_type"
+                                ],
+                                "additionalProperties": false
+                            },
                             "additionalItems": false
                         }
-		    },
-		    "required": ["name", "schema", "columns"],
-		    "additionalProperties": false
-		}
-	    }
-	},
+                    },
+                    "required": [
+                        "name",
+                        "schema",
+                        "columns"
+                    ],
+                    "additionalProperties": false
+                }
+            }
+        },
         "view": {
             "type": "object",
-            "required": ["view"],
-	    "additionalProperties": false,
+            "required": [
+                "view"
+            ],
+            "additionalProperties": false,
             "properties": {
                 "view": {
                     "type": "object",
                     "properties": {
-			"name": {
-			    "type": "string"
-			},
-			"schema": {
-			    "type": "string"
-			},
-			"query": {
-			    "type": "string"
-			},
-			"owner": {
-			    "type": "string"
-			},
-			"privileges": {
-			    "type": "array",
-			    "items": {
-				"type": "object",
-				"properties": {
-				    "role": {
-					"type": "string"
-				    },
-				    "privilege": {
-					"type": "string"
-				    }
-				},
-				"required": ["role", "privilege"],
-				"additionalProperties": false
-			    },
-			    "additionalItems": false
-			}
-		    },
-		    "required": ["name", "schema", "query"],
-		    "additionalProperties": false
-		}
-	    }
-	},
+                        "name": {
+                            "type": "string"
+                        },
+                        "schema": {
+                            "type": "string"
+                        },
+                        "query": {
+                            "type": "string"
+                        },
+                        "owner": {
+                            "type": "string"
+                        },
+                        "privileges": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "role": {
+                                        "type": "string"
+                                    },
+                                    "privilege": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "role",
+                                    "privilege"
+                                ],
+                                "additionalProperties": false
+                            },
+                            "additionalItems": false
+                        }
+                    },
+                    "required": [
+                        "name",
+                        "schema",
+                        "query"
+                    ],
+                    "additionalProperties": false
+                }
+            }
+        },
         "row": {
             "type": "object",
-            "required": ["row"],
-	    "additionalProperties": false,
+            "required": [
+                "row"
+            ],
+            "additionalProperties": false,
             "properties": {
                 "row": {
                     "type": "object",
                     "properties": {
-			"table": {
-			    "type": "object",
-			    "properties": {
-				"schema": {
-				    "type": "string"
-				},
-				"name": {
-				    "type": "string"
-				}
-			    },
-			    "required": ["schema", "name"],
-			    "additionalProperties": false
-			},
-			"values": {
-			    "type": "array",
-			    "items": {
-				"type": "object",
-				"properties": {
-				    "column": {
-					"type": "string"
-				    },
-				    "value": { }
-				},
-				"required": ["column", "value"],
-				"additionalProperties": false
-			    },
-			    "additionalItems": false
-			}
-		    },
-		    "required": ["table", "values"],
-		    "additionalProperties": false
-		}
-	    }
-	}
+                        "table": {
+                            "type": "object",
+                            "properties": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "schema",
+                                "name"
+                            ],
+                            "additionalProperties": false
+                        },
+                        "values": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "column": {
+                                        "type": "string"
+                                    },
+                                    "value": {}
+                                },
+                                "required": [
+                                    "column",
+                                    "value"
+                                ],
+                                "additionalProperties": false
+                            },
+                            "additionalItems": false
+                        }
+                    },
+                    "required": [
+                        "table",
+                        "values"
+                    ],
+                    "additionalProperties": false
+                }
+            }
+        }
     }
 }
