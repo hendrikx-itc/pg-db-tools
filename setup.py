@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import setuptools
 
-with open("README.md", "r") as fh:
+with open("README.rst", "r") as fh:
     long_description = fh.read()
 
 
@@ -13,7 +13,6 @@ setuptools.setup(
     author_email='alfred.blokland@hendrikx-itc.nl',
     url='http://www.hendrikx-itc.nl',
     long_description=long_description,
-    long_description_content_type="text/markdown",
     packages=[
         'pg_db_tools',
         'pg_db_tools.commands'
