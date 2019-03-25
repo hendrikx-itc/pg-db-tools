@@ -35,7 +35,7 @@ def init_command(args):
     with open(args.schema) as infile:
         data = load(infile)
 
-    schema_directory = os.path.join(args.directory, 'source/schema')
+    schema_directory = os.path.join(args.directory, 'schema')
 
     try:
         os.makedirs(schema_directory)
