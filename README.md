@@ -1,5 +1,7 @@
 # PostgreSQL Database Tools
 
+[![Crates.io](https://img.shields.io/pypi/v/pg-db-tools.svg)](https://pypi.org/project/pg-db-tools/)
+
 Design, create, maintain and document a PostgreSQL databases using a yaml based
 descriptions.
 
