@@ -56,6 +56,9 @@
                         "$ref": "#/definitions/view"
                     },
                     {
+                        "$ref": "#/definitions/setting"
+                    },
+                    {
                         "$ref": "#/definitions/row"
                     }
                 ]
@@ -998,6 +1001,28 @@
                     ],
                     "additionalProperties": false
                 }
+            }
+        },
+        "setting": {
+            "type": "object",
+            "required": [
+                "setting"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "setting": {
+                    "type": "object",
+                    "required": [
+                        "name", "value"
+                    ],
+                    "additionalProperties": false,                     
+                    "properties": {
+                        "name": {
+                            "type": "string"
+                        },
+                        "value": { }
+                    }
+		}
             }
         },
         "row": {
