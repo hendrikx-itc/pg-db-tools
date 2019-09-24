@@ -7,7 +7,7 @@ with open("README.rst", "r") as fh:
 
 setuptools.setup(
     name='pg-db-tools',
-    version='1.0.4',
+    version='1.0.5',
     description='PostgreSQL database schema design and maintenance tools',
     author='Alfred Blokland',
     author_email='alfred.blokland@hendrikx-itc.nl',
