@@ -17,6 +17,10 @@ SKIPPED_SCHEMAS = ['pg_catalog', 'information_schema', 'pg_toast', 'pg_temp_1',
                    'pg_toast_temp_1', 'dep_recurse']
 
 
+class SchemaException(Exception):
+    pass
+
+
 class PgDatabase:
 
     dependencyre_with_arguments = re.compile(r'(?s)([\w_]+"?\.[\w_]+"?)\(')
@@ -156,8 +160,12 @@ class PgDatabase:
             return schema
 
     def get_schema_by_name(self, name):
-        schemas = [schema for schema in self.schemas.values()
-                   if schema.name == name]
+        schemas = [
+            schema
+            for schema in self.schemas.values()
+            if schema.name == name
+        ]
+
         if schemas:
             return schemas[0]
         elif name in SILENT_SCHEMAS:
@@ -165,10 +173,15 @@ class PgDatabase:
         else:
             return None
 
-    def blockers_from_dependencies(self, object):
-        return [dependency.referenced_obj
-                for dependency in self.dependencies
-                if dependency.dependent_obj == object]
+    def get_type(self, schema_name, type_name):
+        return self.get_schema_by_name(schema_name).get_type(type_name)
+
+    def blockers_from_dependencies(self, db_object):
+        return [
+            dependency.referenced_obj
+            for dependency in self.dependencies
+            if dependency.dependent_obj == db_object
+        ]
 
     def filter_objects(self, database_filter):
         database = PgDatabase()
@@ -183,39 +196,49 @@ class PgDatabase:
 
     def to_json(self, schema_names=None, internal_order=False):
         if schema_names is None or len(schema_names) == 0:
-            objects_to_include = [object for object in self.objects
-                                  if object.schema.name not in SKIPPED_SCHEMAS]
+            objects_to_include = [
+                db_object
+                for db_object in self.objects
+                if db_object.schema.name not in SKIPPED_SCHEMAS
+            ]
         else:
-            objects_to_include = [object for object in self.objects
-                if object.schema.name not in SKIPPED_SCHEMAS and object.schema.name in schema_names]
-        for object in objects_to_include:
-            object.build_dependencies()
+            objects_to_include = [
+                db_object
+                for db_object in self.objects
+                if db_object.schema.name not in SKIPPED_SCHEMAS
+                and db_object.schema.name in schema_names
+            ]
+
+        for db_object in objects_to_include:
+            db_object.build_dependencies()
+
         objects_included = []
+
         while objects_to_include:
-            for object in objects_to_include:
-                if not object.is_blocked(objects_to_include):
-                    objects_included.append(object)
-                    objects_to_include.remove(object)
+            for db_object in objects_to_include:
+                if not db_object.is_blocked(objects_to_include):
+                    objects_included.append(db_object)
+                    objects_to_include.remove(db_object)
                     break
             else:
                 # all remaining objects are in a cycle or depend on a cycle;
                 # try to pick one that leads to least chance of being
                 # problematic
-                for object in objects_to_include:
-                    blockingobjects = self.blockers_from_dependencies(object)
-                    if not [x for x in blockingobjects
-                            if x in objects_include]\
-                       and not object.is_blocked(objects_to_include,
+                for db_object in objects_to_include:
+                    blocking_objects = self.blockers_from_dependencies(db_object)
+                    if not [x for x in blocking_objects
+                            if x in objects_included]\
+                       and not db_object.is_blocked(objects_to_include,
                                                  samenameblocks=False):
-                        objects_included.append(object)
-                        objects_to_include.remove(object)
+                        objects_included.append(db_object)
+                        objects_to_include.remove(db_object)
                         break
                 else:
-                    for object in objects_to_include:
-                        if not object.is_blocked(objects_to_include,
+                    for db_object in objects_to_include:
+                        if not db_object.is_blocked(objects_to_include,
                                                  samenameblocks=False):
-                            objects_included.append(object)
-                            objects_to_include.remove(object)
+                            objects_included.append(db_object)
+                            objects_to_include.remove(db_object)
                             break
                     else:
                         # not able to find some lower-risk object,
@@ -225,17 +248,19 @@ class PgDatabase:
 
         return OrderedDict(
             objects=[
-                OrderedDict([(object.object_type, object.to_json())])
-                for object in objects_included
+                OrderedDict([(db_object.object_type, db_object.to_json())])
+                for db_object in objects_included
             ]
         )
 
-    def get_type_ref(self, typestring):
-        if '.' in typestring:
-            return PgTypeRef(self.register_schema(typestring.split('.', 1)[0]),
-                             typestring.split('.', 1)[1])
+    def get_type_ref(self, type_str):
+        if '.' in type_str:
+            return PgTypeRef(
+                self.register_schema(type_str.split('.', 1)[0]),
+                type_str.split('.', 1)[1]
+            )
         else:
-            return PgTypeRef(self.register_schema(DEFAULT_SCHEMA), typestring)
+            return PgTypeRef(self.register_schema(DEFAULT_SCHEMA), type_str)
 
     def find_dependencies(self, text):
         dependencies = []
@@ -262,16 +287,16 @@ class PgDatabase:
             else:
                 argument_number = 0
             if schema:
-                for object in schema.getall(name):
-                    if object.argument_number == argument_number:
-                        dependencies.append(object)
+                for db_object in schema.getall(name):
+                    if db_object.argument_number == argument_number:
+                        dependencies.append(db_object)
             remaining_text = remaining_text[loc:]
         for (schema_name, name) in\
                 self.dependencyre_without_arguments.findall(str(text)):
             schema = self.get_schema_by_name(schema_name)
             if schema:
-                for object in schema.getall(name):
-                    dependencies.append(object)
+                dependencies.extend(schema.getall(name))
+
         return dependencies
 
     def get_role_by_name(self, id):
@@ -465,17 +490,24 @@ class PgSchema(PgObject):
 
         return schema
 
-    def get_type(self, typename):
-        for type in (self.types + self.enum_types + self.composite_types +
-                     self.tables + self.views + self.aggregates):
-            if type.name == typename:
-                return type
+    def get_type(self, type_name):
+        type_chain = itertools.chain(
+            self.types, self.enum_types, self.composite_types, self.tables,
+            self.views, self.aggregates
+        )
+
+        for pg_type in type_chain:
+            if pg_type.name == type_name:
+                return pg_type
         else:
-            if self.name in SILENT_SCHEMAS or typename.endswith('[]'):
-                return PgType(self, typename)
+            if self.name in SILENT_SCHEMAS or type_name.endswith('[]'):
+                return PgType(self, type_name)
             else:
-                raise KeyError('Type not defined in schema {}: {}'.format(
-                    self.name, typename))
+                raise SchemaException(
+                    'Type not defined in schema {}: {}'.format(
+                        self.name, type_name
+                    )
+                )
 
     @property
     def objects(self):
@@ -487,8 +519,10 @@ class PgSchema(PgObject):
         for obj in self.objects:
             if obj.name == name:
                 return obj
-        else:
-            return None
+
+        raise SchemaException(
+            "No such object '{}' in schema '{}'".format(name, self.name)
+        )
 
     def get_table(self, name):
         for table in self.tables:
@@ -657,7 +691,6 @@ class PgTable(PgObject):
             if child_oid in tables and parent_oid in tables:
                 tables[child_oid].inherits = tables[parent_oid]
 
-
         query = 'SELECT partrelid, partstrat, partattrs FROM pg_class'
         query_args = tuple()
 
@@ -672,7 +705,6 @@ class PgTable(PgObject):
                 # -1 on the next line because postgres uses 1-based counting and
                 # Python 0-based counting
                 tables[row[0]].partitioncolumns = [tables[row[0]].columns[row[2] -1]]
-
 
         return tables
 
@@ -711,10 +743,15 @@ class PgTable(PgObject):
 
         table.owner = database.get_role_by_name(data.get('owner'))
 
-        table.foreign_keys = [
-            PgForeignKey.load(database, foreign_key)
-            for foreign_key in data.get('foreign_keys', [])
-        ]
+        try:
+            table.foreign_keys = [
+                PgForeignKey.load(database, foreign_key)
+                for foreign_key in data.get('foreign_keys', [])
+            ]
+        except SchemaException as exc:
+            raise SchemaException(
+                "Error creating foreign key on table '{}'".format(data['name'])
+            ) from exc
 
         if 'inherits' in data:
             inherits_schema = database.schemas[data['inherits']['schema']]
@@ -911,6 +948,7 @@ class PgColumn(PgObject):
     def __init__(self, name, data_type):
         self.name = name
         self.data_type = data_type
+        self.generated_identity = None
         self.nullable = False
         self.description = None
         self.default = None
@@ -924,11 +962,15 @@ class PgColumn(PgObject):
             ('nullable', self.nullable)
         ]
 
+        if self.generated_identity is not None:
+            attributes.append(('generated_identity', self.generated_identity))
+
         if self.description is not None:
             attributes.append(('description', self.description))
 
         if self.default is not None:
             attributes.append(('default', self.default))
+
         return OrderedDict(attributes)
 
     @staticmethod
@@ -937,7 +979,7 @@ class PgColumn(PgObject):
             data['name'],
             database.get_type_ref(str(data['data_type']))
         )
-
+        column.generated_identity = data.get('generated_identity')
         column.description = data.get('description')
         column.nullable = data.get('nullable', True)
         column.default = data.get('default', None)
@@ -1035,12 +1077,16 @@ class PgForeignKey:
     @staticmethod
     def load(database, data):
         schema = database.get_schema_by_name(
-            data['references']['table']['schema'])
+            data['references']['table']['schema']
+        )
+
+        table = schema.get(data['references']['table']['name'])
+
         return PgForeignKey(
             schema,
             data.get('name'),
             data['columns'],
-            schema.get(data['references']['table']['name']),
+            table,
             data['references']['columns'],
             data.get('on_update', None),
             data.get('on_delete', None)
@@ -1434,15 +1480,19 @@ class PgCast(PgObject):
 
     @staticmethod
     def load(database, data):
-        return PgCast(
-            database.get_schema_by_name(data['source']['schema']).get_type(
-                data['source']['name']),
-            database.get_schema_by_name(data['target']['schema']).get_type(
-                data['target']['name']),
-            database.get_schema_by_name(data['function']['schema']).get(
-                data['function']['name']),
-            data.get('implicit', False)
-        )
+        try:
+            return PgCast(
+                database.get_type(data['source']['schema'], data['source']['name']),
+                database.get_type(data['target']['schema'], data['target']['name']),
+                database.get_schema_by_name(data['function']['schema']).get(
+                    data['function']['name']),
+                data.get('implicit', False)
+            )
+        except SchemaException as exc:
+            raise SchemaException('Error loading cast {}.{} -> {}.{}'.format(
+                data['source']['schema'], data['source']['name'],
+                data['target']['schema'], data['target']['name']
+            )) from exc
 
     def to_json(self):
         attributes = [
@@ -1941,7 +1991,12 @@ class PgTableRef(PgObject):
         return '"{}"."{}"'.format(self.registry.name, self.ref)
 
     def dereference(self):
-        return self.registry.get(self.ref)
+        pg_table = self.registry.get(self.ref)
+
+        if pg_table is not None:
+            return pg_table
+        else:
+            raise SchemaException("Could not dereference table reference '{}' to a table object".format(self.ref))
 
     def to_json(self, short=False, showdefault=False):
         return self.dereference().to_json(short=short, showdefault=showdefault)

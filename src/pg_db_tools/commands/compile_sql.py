@@ -5,7 +5,7 @@ import argparse
 import sys
 from io import TextIOWrapper
 
-from pg_db_tools.pg_types import load
+from pg_db_tools.pg_types import SchemaException, load
 from pg_db_tools.sql_renderer import SqlRenderer
 
 
@@ -49,7 +49,18 @@ def sql_command(args):
 
     out_file = TextIOWrapper(out_file, args.out_encoding)
 
-    data = load(args.infile)
+    try:
+        data = load(args.infile)
+    except SchemaException as exc:
+        raise exc
+        def error_chain(e):
+            if e.__cause__:
+                return "{}: {}".format(str(e), error_chain(e.__cause__))
+            else:
+                return str(e)
+
+        sys.stderr.write("Error loading schema: {}\n".format(error_chain(exc)))
+        return
 
     renderer = SqlRenderer()
     renderer.if_not_exists = args.if_not_exists

@@ -293,6 +293,9 @@
                                     "data_type": {
                                         "type": "string"
                                     },
+                                    "generated_identity": {
+                                        "type": "string"
+                                    },
                                     "nullable": {
                                         "type": "boolean"
                                     },

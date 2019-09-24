@@ -159,6 +159,12 @@ def render_table(table):
 
     lines.append('')
 
+    def format_column_description(column_description):
+        if column_description is None:
+            return ''
+        else:
+            return column_description.strip()
+
     lines.extend(
         render_table_grid(
             ['Column', 'Type', 'Nullable', 'Description'],
@@ -167,7 +173,7 @@ def render_table(table):
                     column.name,
                     column.data_type,
                     nullable_marker(column.nullable),
-                    column.description or ''
+                    format_column_description(column.description)
                 )
                 for column in table.columns
             ]
