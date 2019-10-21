@@ -321,7 +321,7 @@ def validate_schema(data):
 
 
 def load(infile):
-    data = yaml.load(infile)
+    data = yaml.load(infile, Loader=yaml.SafeLoader)
 
     validate_schema(data)
 
