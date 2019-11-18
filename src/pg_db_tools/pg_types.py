@@ -1,3 +1,4 @@
+from typing import List
 import copy
 from contextlib import closing
 import json
@@ -6,10 +7,14 @@ from collections import OrderedDict
 from operator import itemgetter
 import itertools
 import re
+import io
 
 from pkg_resources import resource_stream
 import yaml
 from jsonschema import validate
+
+from pg_db_tools.modification import Diff, AddColumn, DropColumn
+
 
 DEFAULT_SCHEMA = 'public'
 SILENT_SCHEMAS = [DEFAULT_SCHEMA, 'pg_catalog']
@@ -59,6 +64,13 @@ class PgDatabase:
 
     @staticmethod
     def load_from_db(conn):
+        with closing(conn.cursor()) as cursor:
+            cursor.execute('SHOW server_version_num')
+
+            server_version_num_str, = cursor.fetchone()
+
+        server_version_num = int(server_version_num_str)
+
         database = PgDatabase()
 
         database.roles = PgRole.load_all_from_db(conn, database)
@@ -89,7 +101,9 @@ class PgDatabase:
             if pg_comp_type not in pg_comp_type.schema.composite_types:
                 pg_comp_type.schema.composite_types.append(pg_comp_type)
 
-        database.tables = PgTable.load_all_from_db(conn, database)
+        database.tables = PgTable.load_all_from_db(
+            conn, database, server_version_num
+        )
 
         for pg_table in database.tables.values():
             if pg_table not in pg_table.schema.tables:
@@ -320,7 +334,7 @@ def validate_schema(data):
     return data
 
 
-def load(infile):
+def load(infile: io.IOBase) -> PgDatabase:
     data = yaml.load(infile, Loader=yaml.SafeLoader)
 
     validate_schema(data)
@@ -398,7 +412,7 @@ class PgSchema(PgObject):
         self.types = []
         self.enum_types = []
         self.composite_types = []
-        self.tables = []
+        self.tables: List[PgTable] = []
         self.functions = []
         self.sequences = []
         self.views = []
@@ -595,7 +609,7 @@ class PgTable(PgObject):
         return dependencies
 
     @staticmethod
-    def load_all_from_db(conn, database):
+    def load_all_from_db(conn, database: PgDatabase, server_version_num: int):
         query = (
             'SELECT pg_class.oid, relnamespace, relname, description, '
             'relowner, relpersistence '
@@ -632,15 +646,12 @@ class PgTable(PgObject):
             for row in rows
         }
 
-        
-
-
         for table in tables.values():
             table.schema.tables.append(table)
 
         query = (
             'SELECT attrelid, attname, atttypid, attnotnull, atthasdef, '
-            'pg_description.description, pg_attrdef.adbin, pg_attrdef.adsrc '
+            'pg_description.description, pg_get_expr(pg_attrdef.adbin, pg_attribute.attrelid) '
             'FROM pg_attribute '
             'LEFT JOIN pg_description '
             'ON pg_description.objoid = pg_attribute.attrelid '
@@ -671,11 +682,11 @@ class PgTable(PgObject):
                                        column_type_oid],
                                    'nullable': not column_notnull,
                                    'hasdef': column_hasdef,
-                                   'default': column_default_human,
+                                   'default': column_default_expr,
                                    'description': column_description})
                     for (table_oid, column_name, column_type_oid,
                          column_notnull, column_hasdef, column_description,
-                         column_default_binary, column_default_human)
+                         column_default_expr)
                     in group
                 ]
 
@@ -691,8 +702,13 @@ class PgTable(PgObject):
             if child_oid in tables and parent_oid in tables:
                 tables[child_oid].inherits = tables[parent_oid]
 
-        query = 'SELECT partrelid, partstrat, partattrs FROM pg_class'
-        query_args = tuple()
+        if server_version_num >= 100000:
+            query = (
+                'SELECT partrelid, partstrat, partattrs '
+                'FROM pg_partitioned_table'
+            )
+        else:
+            query = 'SELECT partrelid, partstrat, partattrs FROM pg_class'
 
         with closing(conn.cursor()) as cursor:
             cursor.execute(query, query_args)
@@ -871,6 +887,32 @@ class PgTable(PgObject):
                 return True
         return False
 
+    def diff(self, other_table):
+        result = Diff()
+
+        for column in self.columns:
+            try:
+                next(
+                    c for c in other_table.columns if c.name == column.name
+                )
+            except StopIteration:
+                # Not found in other_table
+                result.steps.append(DropColumn(self, column))
+
+        for column in other_table.columns:
+            try:
+                next(
+                    c for c in self.columns if c.name == column.name
+                )
+            except StopIteration:
+                # Not found in this table
+                result.steps.append(AddColumn(self, column))
+
+        if result.steps:
+            return result
+        else:
+            return None
+
 
 class PgPrimaryKey(PgObject):
     def __init__(self, name, columns):
@@ -953,6 +995,9 @@ class PgColumn(PgObject):
         self.description = None
         self.default = None
         self.comment = None
+
+    def __str__(self):
+        return '{} {}'.format(self.name, self.data_type)
 
     def to_json(self):
         attributes = [
@@ -1396,7 +1441,7 @@ class PgTrigger(PgObject):
 
     @staticmethod
     def load(database, data):
-        return PgTrigger(
+        pg_trigger = PgTrigger(
             database.get_schema_by_name(data['table']['schema']).get(
                 data['table']['name']),
             data['name'],
@@ -1406,6 +1451,10 @@ class PgTrigger(PgObject):
             data['events'],
             data.get('affecteach', 'statement')
         )
+
+        database.triggers[str(pg_trigger)] = pg_trigger
+
+        return pg_trigger
 
     def to_json(self):
         return OrderedDict([
@@ -1560,7 +1609,11 @@ class PgOperator(PgObject):
         else:
             righttype = None
         code = data.get('code')
-        return PgOperator(name, lefttype, righttype, code)
+        pg_operator = PgOperator(name, lefttype, righttype, code)
+
+        database.operators[pg_operator.name] =  pg_operator
+
+        return pg_operator
 
     def to_json(self):
         attributes = [
@@ -1933,6 +1986,12 @@ class PgTypeRef(PgObject):
             return self.ref
         else:
             return '{}.{}'.format(self.registry.name, self.ref)
+
+    def __eq__(self, other):
+        return self.ref == other.ref
+
+    def __ne__(self, other):
+        return self.ref != other.ref
 
     def ident(self):
         return str(self)

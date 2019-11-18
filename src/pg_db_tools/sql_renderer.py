@@ -5,6 +5,7 @@ from pg_db_tools.graph import database_to_graph
 from pg_db_tools.pg_types import PgEnumType, PgTable, PgFunction, PgView, \
     PgCompositeType, PgAggregate, PgSequence, PgSchema, PgRole, PgTrigger, \
     PgCast, PgSetting, PgRow, PgQuery, PgOperator
+from pg_db_tools.modification import DropColumn, AddColumn
 
 
 def render_setting_sql(pg_setting):
@@ -96,6 +97,13 @@ def render_table_sql(table):
         ))
 
 
+def render_drop_table_sql(table):
+    return 'DROP TABLE {}.{};'.format(
+        quote_ident(table.schema.name),
+        quote_ident(table.name)
+    )
+
+
 def table_defining_components(table):
     for column_data in table.columns:
         if table.inherits\
@@ -174,7 +182,7 @@ def render_exclude_constraint(exclude_data):
     return ''.join(parts)
 
 
-def render_function_sql(pg_function):
+def render_function_sql(pg_function, replace=False):
     returns_part = '    RETURNS '
 
     table_arguments = [
@@ -191,9 +199,14 @@ def render_function_sql(pg_function):
 
         returns_part += pg_function.return_type.safe_ident()
 
+    if replace:
+        create_part = 'CREATE OR REPLACE FUNCTION'
+    else:
+        create_part = 'CREATE FUNCTION'
+
     yield (
-        'CREATE FUNCTION "{}"."{}"({})'.format(
-            pg_function.schema.name, pg_function.name,
+        '{} "{}"."{}"({})'.format(
+            create_part, pg_function.schema.name, pg_function.name,
             ', '.join(render_argument(argument)
                       for argument in pg_function.arguments
                       if argument.mode in ('i', 'o', 'b', 'v'))
@@ -218,6 +231,18 @@ def render_function_sql(pg_function):
             )
 
 
+def render_drop_function_sql(pg_function):
+    args_part = ', '.join(
+        str(argument.data_type.safe_ident())
+        for argument in pg_function.arguments
+        if argument.mode in ('i', 'o', 'b', 'v')
+    )
+
+    return 'DROP FUNCTION "{}"."{}"({});'.format(
+        pg_function.schema.name, pg_function.name, args_part
+    )
+
+
 def render_trigger_sql(pg_trigger):
     when = "INSTEAD OF" if pg_trigger.when == 'instead'\
            else pg_trigger.when.upper()
@@ -228,6 +253,10 @@ def render_trigger_sql(pg_trigger):
         '  FOR EACH {}'.format(pg_trigger.affecteach.upper()),
         '  EXECUTE PROCEDURE {}();'.format(pg_trigger.function)
     ]
+
+
+def render_drop_trigger_sql(pg_trigger):
+    return 'DROP TRIGGER {} ON {};'.format(pg_trigger.name, pg_trigger.table)
 
 
 def render_sequence_sql(pg_sequence):
@@ -268,6 +297,14 @@ def render_operator_sql(pg_operator):
     result[-1] = result[-1].rstrip(',')
     result.append(');')
     return result
+
+
+def render_drop_operator_sql(pg_operator):
+    return 'DROP OPERATOR {} ({}, {});'.format(
+        pg_operator.name,
+        pg_operator.lefttype.ident(),
+        pg_operator.righttype.ident()
+    )
 
 
 def render_row_sql(pg_row):
@@ -359,6 +396,15 @@ def render_composite_type_sql(pg_composite_type):
     )
 
 
+def render_drop_composite_type_sql(pg_composite_type):
+    return 'DROP TYPE {ident};'.format(
+        ident='{}.{}'.format(
+            quote_ident(pg_composite_type.schema.name),
+            quote_ident(pg_composite_type.name)
+        )
+    )
+
+
 def render_enum_type_sql(pg_enum_type):
     yield (
         'CREATE TYPE {ident} AS ENUM (\n'
@@ -446,6 +492,34 @@ sql_renderers = {
     PgRow: render_row_sql,
     PgQuery: render_query_sql
 }
+
+
+def render_drop_column(drop_column: DropColumn) -> str:
+    return 'ALTER TABLE {}.{} DROP COLUMN {};'.format(
+        quote_ident(drop_column.table.schema.name),
+        quote_ident(drop_column.table.name),
+        quote_ident(drop_column.column.name)
+    )
+
+
+def render_add_column(add_column: AddColumn) -> str:
+    return 'ALTER TABLE {}.{} ADD COLUMN {};'.format(
+        quote_ident(add_column.table.schema.name),
+        quote_ident(add_column.table.name),
+        render_column_definition(add_column.column)
+    )
+
+
+modification_renderers = {
+    DropColumn: render_drop_column,
+    AddColumn: render_add_column
+}
+
+
+def render_modification(modification):
+    renderer = modification_renderers.get(type(modification))
+
+    return renderer(modification)
 
 
 class SqlRenderer:

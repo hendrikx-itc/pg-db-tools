@@ -26,7 +26,9 @@ setuptools.setup(
     package_data={
         'pg_db_tools': ['spec.schema', 'doc_template']
     },
-    scripts=[
-        'scripts/db-schema'
-    ]
+    entry_points={
+        'console_scripts': [
+            'db-schema = pg_db_tools.commands.db_schema:main'
+        ]
+    }
 )
