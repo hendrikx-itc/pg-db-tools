@@ -33,7 +33,7 @@ def dot_command(args):
     else:
         out_file = args.output_file
 
-    data = yaml.load(args.infile)
+    data = yaml.load(args.infile, Loader=yaml.SafeLoader)
 
     rendered_chunks = render_md(data)
 
