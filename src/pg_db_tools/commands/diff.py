@@ -3,7 +3,7 @@ Provides the 'diff' sub-command including argument parsing
 """
 import sys
 
-from pg_db_tools.pg_types import load, PgSchema
+from pg_db_tools.pg_types import load, PgSchema, PgFunction
 from pg_db_tools.sql_renderer import render_table_sql, render_function_sql, \
     render_drop_table_sql, render_drop_function_sql, render_trigger_sql, \
     render_drop_trigger_sql, render_composite_type_sql, \
@@ -125,7 +125,7 @@ def diff_schema(current_schema, target_schema):
             sys.stdout.write('\n')
 
 
-def function_matches(current_function, target_function):
+def function_matches(current_function: PgFunction, target_function: PgFunction):
     if current_function.name != target_function.name:
         return False
 
@@ -135,6 +135,9 @@ def function_matches(current_function, target_function):
     for current_argument, target_argument in zip(current_function.arguments, target_function.arguments):
         if current_argument.data_type != target_argument.data_type:
             return False
+
+    if current_function.return_type != target_function.return_type:
+        return False
 
     return True
 
