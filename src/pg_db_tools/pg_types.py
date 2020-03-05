@@ -51,7 +51,7 @@ class PgDatabase:
         self.queries = []
 
     @staticmethod
-    def load(data):
+    def load(data: dict):
         database = PgDatabase()
 
         database.extensions = data.get('extensions', [])
@@ -165,7 +165,7 @@ class PgDatabase:
 
         return database
 
-    def register_schema(self, name):
+    def register_schema(self, name: str):
         if name in self.schemas:
             return self.schemas.get(name)
         else:
@@ -173,7 +173,7 @@ class PgDatabase:
             self.schemas[name] = schema
             return schema
 
-    def get_schema_by_name(self, name):
+    def get_schema_by_name(self, name: str):
         schemas = [
             schema
             for schema in self.schemas.values()
@@ -187,7 +187,7 @@ class PgDatabase:
         else:
             return None
 
-    def get_type(self, schema_name, type_name):
+    def get_type(self, schema_name: str, type_name: str):
         return self.get_schema_by_name(schema_name).get_type(type_name)
 
     def blockers_from_dependencies(self, db_object):
@@ -240,17 +240,24 @@ class PgDatabase:
                 # problematic
                 for db_object in objects_to_include:
                     blocking_objects = self.blockers_from_dependencies(db_object)
-                    if not [x for x in blocking_objects
-                            if x in objects_included]\
-                       and not db_object.is_blocked(objects_to_include,
-                                                 samenameblocks=False):
+
+                    included_blocking_object = [
+                        x
+                        for x in blocking_objects
+                        if x in objects_included
+                    ]
+
+                    db_object_is_blocked = db_object.is_blocked(
+                        objects_to_include, samenameblocks=False
+                    )
+
+                    if not included_blocking_object and not db_object_is_blocked:
                         objects_included.append(db_object)
                         objects_to_include.remove(db_object)
                         break
                 else:
                     for db_object in objects_to_include:
-                        if not db_object.is_blocked(objects_to_include,
-                                                 samenameblocks=False):
+                        if not db_object.is_blocked(objects_to_include, samenameblocks=False):
                             objects_included.append(db_object)
                             objects_to_include.remove(db_object)
                             break
@@ -267,7 +274,7 @@ class PgDatabase:
             ]
         )
 
-    def get_type_ref(self, type_str):
+    def get_type_ref(self, type_str: str):
         if '.' in type_str:
             return PgTypeRef(
                 self.register_schema(type_str.split('.', 1)[0]),
@@ -386,14 +393,14 @@ class PgObject:
         return data_type_mapping.get(self.name, self.name)
 
     @property
-    def argument_number(self):
+    def argument_number(self) -> int:
         try:
             return len(self.arguments)
         except AttributeError:
             return 0
 
     @property
-    def database(self):
+    def database(self) -> PgDatabase:
         return self.schema.database
 
     def safe_ident(self):
@@ -430,7 +437,7 @@ class PgSchema(PgObject):
             ([self.owner] if self.owner else [])
 
     @property
-    def database(self):
+    def database(self) -> PgDatabase:
         return self._database
 
     @staticmethod
@@ -440,7 +447,6 @@ class PgSchema(PgObject):
             obj_description(pg_namespace.oid, 'pg_namespace') 
             FROM pg_namespace
         """
-
 
         query_args = tuple()
 
@@ -484,8 +490,13 @@ class PgSchema(PgObject):
         if data.get('owner'):
             schema.owner = database.get_role_by_name(data.get('owner'))
         for right in data.get('privileges', []):
-            schema.privileges.append((database.get_role_by_name(right['role']),
-                                 right['privilege']))
+            schema.privileges.append(
+                (
+                    database.get_role_by_name(right['role']),
+                    right['privilege']
+                )
+            )
+
         return schema
 
     def filter_objects(self, database_filter):
@@ -599,9 +610,13 @@ class PgTable(PgObject):
 
     def get_dependencies(self):
         dependencies = [
-            key.ref_table for key in self.foreign_keys] + [self.database.get_role_by_name(priv[0])
+            key.ref_table
+            for key in self.foreign_keys
+        ] + [
+            self.database.get_role_by_name(priv[0])
             for priv in self.privileges
         ]
+
         if self.inherits:
             dependencies.append(self.inherits)
         if self.owner:
@@ -792,7 +807,7 @@ class PgTable(PgObject):
 
         return table
 
-    def to_json(self, short=False, showdefault=False):
+    def to_json(self, short=False, showdefault=False) -> object:
         if short:
             if not showdefault and self.schema.name in SILENT_SCHEMAS:
                 return self.name
@@ -871,9 +886,17 @@ class PgTable(PgObject):
             if self.partitiontype:
                 attributes.append((
                     'partition',
-                    [OrderedDict([('type', self.partitiontype),
-                                  ('columns', [OrderedDict([('name', column)]) for column in self.partitioncolumns])
-                    ])]
+                    [
+                        OrderedDict([
+                            ('type', self.partitiontype),
+                            (
+                                'columns', [
+                                    OrderedDict([
+                                        ('name', column)
+                                    ]) for column in self.partitioncolumns
+                                ])
+                        ])
+                    ]
                 ))
 
             return OrderedDict(attributes)
@@ -887,13 +910,14 @@ class PgTable(PgObject):
                 return True
         return False
 
-    def diff(self, other_table):
+    def diff(self, other_table) -> Diff:
         result = Diff()
 
         for column in self.columns:
             try:
                 next(
-                    c for c in other_table.columns if c.name == column.name
+                    c for c in other_table.columns
+                    if c.name == column.name and c.data_type == column.data_type
                 )
             except StopIteration:
                 # Not found in other_table
@@ -902,7 +926,8 @@ class PgTable(PgObject):
         for column in other_table.columns:
             try:
                 next(
-                    c for c in self.columns if c.name == column.name
+                    c for c in self.columns
+                    if c.name == column.name and c.data_type == column.data_type
                 )
             except StopIteration:
                 # Not found in this table
@@ -919,7 +944,7 @@ class PgPrimaryKey(PgObject):
         self.name = name
         self.columns = columns
 
-    def to_json(self):
+    def to_json(self) -> OrderedDict:
         return OrderedDict([
             ('name', self.name),
             ('columns', self.columns)
@@ -960,7 +985,7 @@ class PgCheck(PgObject):
         self.name = name
         self.expression = expression
 
-    def to_json(self):
+    def to_json(self) -> OrderedDict:
         return OrderedDict([
             ('name', self.name),
             ('expression', self.expression)
@@ -999,7 +1024,7 @@ class PgColumn(PgObject):
     def __str__(self):
         return '{} {}'.format(self.name, self.data_type)
 
-    def to_json(self):
+    def to_json(self) -> OrderedDict:
         attributes = [
             ('name', self.name),
             ('data_type', self.data_type.to_json(short=True,
@@ -1049,7 +1074,7 @@ class PgForeignKey:
         except AttributeError:
             return obj
 
-    def to_json(self):
+    def to_json(self) -> OrderedDict:
         arguments = [
             ('columns', self.columns),
             ('references', OrderedDict([
@@ -1151,7 +1176,7 @@ class PgEnumType(PgObject):
 
         return PgEnumType(schema, data['name'], data['labels'])
 
-    def to_json(self):
+    def to_json(self) -> OrderedDict:
         return OrderedDict([
             ('schema', self.schema.name),
             ('name', self.name),
@@ -1233,13 +1258,13 @@ class PgFunction(PgObject):
 
         return pg_function
 
-    def ident(self):
+    def ident(self) -> str:
         if self.schema.name in SILENT_SCHEMAS:
             return self.name
         else:
             return '{}.{}'.format(self.schema.name, self.name)
 
-    def to_json(self):
+    def to_json(self) -> OrderedDict:
         attributes = [
             ('name', self.name),
             ('schema', self.schema.name),
@@ -1315,10 +1340,14 @@ class PgFunction(PgObject):
                 arg_names = len(all_arg_type_oids) * [None]
 
             arguments = [
-                PgArgument(empty_str_filter(name), database.types[type_oid],
-                           arg_mode, None)
-                for type_oid, name, arg_mode in zip(
-                        all_arg_type_oids, arg_names, arg_modes)
+                PgArgument(
+                    empty_str_filter(name),
+                    database.types[type_oid],
+                    arg_mode,
+                    None
+                )
+                for type_oid, name, arg_mode
+                in zip(all_arg_type_oids, arg_names, arg_modes)
             ]
 
             if defaults:
@@ -1418,7 +1447,7 @@ class PgTrigger(PgObject):
         query = (
             'SELECT oid, tgrelid, tgname, tgfoid, tgtype '
             'FROM pg_trigger WHERE NOT tgisinternal'
-            )
+        )
 
         with closing(conn.cursor()) as cursor:
             cursor.execute(query)
@@ -1456,7 +1485,7 @@ class PgTrigger(PgObject):
 
         return pg_trigger
 
-    def to_json(self):
+    def to_json(self) -> OrderedDict:
         return OrderedDict([
             ('table', OrderedDict([
                 ('schema', self.table.schema.name),
@@ -1474,7 +1503,7 @@ class PgTrigger(PgObject):
 
 
 class PgCast(PgObject):
-    def __init__(self, source, target, function, implicit=False):
+    def __init__(self, source, target, function: PgFunction, implicit=False):
         self.source = source
         self.target = target
         self.function = function
@@ -1484,11 +1513,11 @@ class PgCast(PgObject):
     def __str__(self):
         return '{}::{}'.format(str(self.source), str(self.target))
 
-    def get_dependencies(self):
+    def get_dependencies(self) -> List[PgObject]:
         return [self.source, self.target, self.function]
 
     @property
-    def name(self):
+    def name(self) -> str:
         return "{} -> {}".format(self.source.name, self.target.name)
 
     @property
@@ -1543,7 +1572,7 @@ class PgCast(PgObject):
                 data['target']['schema'], data['target']['name']
             )) from exc
 
-    def to_json(self):
+    def to_json(self) -> OrderedDict:
         attributes = [
             ('source', OrderedDict([
                 ('schema', self.source.schema.name),
@@ -1587,35 +1616,46 @@ class PgOperator(PgObject):
         return self.name
 
     def get_dependencies(self):
-        return [self.lefttype, self.righttype, self.resulttype] +\
+        result = [self.lefttype, self.righttype, self.resulttype]
+
+        result.extend(
             self.database.find_dependencies(
-                self.code + '(null, null)') +\
-            self.database.find_dependencies(self.code + '(null)') +\
-            self.database.find_dependencies(self.code + '()')
+                self.code + '(null, null)'
+            )
+        )
+
+        result.extend(self.database.find_dependencies(self.code + '(null)'))
+
+        result.extend(self.database.find_dependencies(self.code + '()'))
+
+        return result
 
     @staticmethod
     def load(database, data):
         name = data['name']
+
         if data['left']:
-            lefttype = database.register_schema(
+            left_type = database.register_schema(
                 data['left']['schema']).get_type(
                     data['left']['name'])
         else:
-            lefttype = None
+            left_type = None
+
         if data['right']:
-            righttype = database.register_schema(
+            right_type = database.register_schema(
                 data['right']['schema']).get_type(
                     data['right']['name'])
         else:
-            righttype = None
-        code = data.get('code')
-        pg_operator = PgOperator(name, lefttype, righttype, code)
+            right_type = None
 
-        database.operators[pg_operator.name] =  pg_operator
+        code = data.get('code')
+        pg_operator = PgOperator(name, left_type, right_type, code)
+
+        database.operators[pg_operator.name] = pg_operator
 
         return pg_operator
 
-    def to_json(self):
+    def to_json(self) -> OrderedDict:
         attributes = [
             ('name', self.name),
             ('code', self.code),
@@ -1639,7 +1679,7 @@ class PgOperator(PgObject):
         return OrderedDict(attributes)
 
     @staticmethod
-    def load_all_from_db(conn, database):
+    def load_all_from_db(conn, database) -> dict:
         query = (
             'SELECT oid, oprname, oprleft, oprright, oprresult, '
             'oprcode '
@@ -1667,7 +1707,7 @@ class PgOperator(PgObject):
 
 
 class PgSequence(PgObject):
-    def __init__(self, schema, name, startvalue="1", minvalue=None,
+    def __init__(self, schema: PgSchema, name: str, startvalue="1", minvalue=None,
                  maxvalue=None, increment="1"):
         self.schema = schema
         self.name = name
@@ -1678,7 +1718,7 @@ class PgSequence(PgObject):
         self.object_type = 'sequence'
 
     @staticmethod
-    def load(database, data):
+    def load(database: PgDatabase, data: dict):
         schema = database.register_schema(data['schema'])
 
         pg_sequence = PgSequence(
@@ -1695,28 +1735,30 @@ class PgSequence(PgObject):
 
         return pg_sequence
 
-    def ident(self):
+    def ident(self) -> str:
         if self.schema.name in SILENT_SCHEMAS:
             return self.name
         else:
             return '{}.{}'.format(self.schema.name, self.name)
 
-    def to_json(self):
+    def to_json(self) -> OrderedDict:
         attributes = [
             ('name', self.name),
             ('schema', self.schema.name),
             ('startvalue', self.start_value)
         ]
+
         if self.minimum_value:
             attributes.append(('minimumvalue', self.minimum_value))
         if self.maximum_value:
             attributes.append(('maximumvalue', self.maximum_value))
+
         attributes.append(('increment', self.increment))
 
         return OrderedDict(attributes)
 
     @staticmethod
-    def load_all_from_db(conn, database):
+    def load_all_from_db(conn, database) -> dict:
         query = (
             'SELECT schemaname, sequencename, start_value, '
             'min_value, max_value, increment_by, last_value '
@@ -1760,7 +1802,7 @@ class PgAggregate(PgObject):
         self.stype = None
         self.object_type = 'aggregate'
 
-    def ident(self):
+    def ident(self) -> str:
         if self.schema.name in SILENT_SCHEMAS:
             return self.name
         else:
@@ -1851,15 +1893,19 @@ class PgAggregate(PgObject):
                 arg_names = len(all_arg_type_oids) * [None]
 
             arguments = [
-                PgArgument(empty_str_filter(name),
-                           database.types[type_oid],
-                           arg_mode, None)
-                for type_oid, name, arg_mode in zip(
-                        all_arg_type_oids, arg_names, arg_modes)
+                PgArgument(
+                    empty_str_filter(name),
+                    database.types[type_oid],
+                    arg_mode,
+                    None
+                )
+                for type_oid, name, arg_mode
+                in zip(all_arg_type_oids, arg_names, arg_modes)
             ]
 
-            aggregate = PgAggregate(database.schemas[namespace_oid],
-                                    name, arguments)
+            aggregate = PgAggregate(
+                database.schemas[namespace_oid], name, arguments
+            )
             aggregate.sfunc = database.functions[sfunc_oid]
             aggregate.stype = database.types[stype_oid]
 

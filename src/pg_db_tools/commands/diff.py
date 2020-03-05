@@ -1,6 +1,7 @@
 """
 Provides the 'diff' sub-command including argument parsing
 """
+import os
 import sys
 
 from pg_db_tools.pg_types import load, PgSchema, PgFunction
@@ -35,6 +36,14 @@ def diff_command(args):
     """
     Entry point for the diff sub-command after parsing the arguments
     """
+    if not os.path.isfile(args.current):
+        print(f"No such file: {args.current}")
+        return 1
+
+    if not os.path.isfile(args.target):
+        print(f"No such file: {args.target}")
+        return 1
+
     with open(args.current) as current_file:
         current_db = load(current_file)
 
@@ -102,6 +111,7 @@ def diff_schema(current_schema, target_schema):
 
         for modification in diff.steps:
             sys.stdout.write(render_modification(modification))
+            sys.stdout.write('\n')
 
     for target_type in find_new_types(current_schema, target_schema):
         sys.stdout.write('\n\n')
