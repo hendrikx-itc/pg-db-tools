@@ -19,7 +19,7 @@ def render_setting_sql(pg_setting) -> List[str]:
         ]
 
 
-def render_table_sql(table) -> Generator[str]:
+def render_table_sql(table) -> Generator[str,None,None]:
     options = []
     post_options = []
 
@@ -107,7 +107,7 @@ def render_drop_table_sql(table: PgTable) -> str:
     )
 
 
-def table_defining_components(table: PgTable) -> Generator[str]:
+def table_defining_components(table: PgTable) -> Generator[str,None,None]:
     for column_data in table.columns:
         if table.inherits\
            and table.inherits.has_comparable_column(column_data):
@@ -185,7 +185,7 @@ def render_exclude_constraint(exclude_data) -> str:
     return ''.join(parts)
 
 
-def render_function_sql(pg_function: PgFunction, replace=False) -> Generator[str]:
+def render_function_sql(pg_function: PgFunction, replace=False) -> Generator[str,None,None]:
     returns_part = '    RETURNS '
 
     table_arguments = [
@@ -371,7 +371,7 @@ def render_role_sql(pg_role: PgRole) -> List[str]:
         )] if pg_role.description is not None else [])
 
 
-def render_view_sql(pg_view: PgView) -> Generator[str]:
+def render_view_sql(pg_view: PgView) -> Generator[str,None,None]:
     yield 'CREATE VIEW "{}"."{}" AS'.format(pg_view.schema.name, pg_view.name)
     yield pg_view.view_query
 
@@ -388,7 +388,7 @@ def render_view_sql(pg_view: PgView) -> Generator[str]:
         )
 
 
-def render_composite_type_sql(pg_composite_type: PgCompositeType) -> Generator[str]:
+def render_composite_type_sql(pg_composite_type: PgCompositeType) -> Generator[str,None,None]:
     yield (
         'CREATE TYPE {ident} AS (\n'
         '{columns_part}\n'
@@ -414,7 +414,7 @@ def render_drop_composite_type_sql(pg_composite_type: PgCompositeType) -> str:
     )
 
 
-def render_enum_type_sql(pg_enum_type: PgEnumType) -> Generator[str]:
+def render_enum_type_sql(pg_enum_type: PgEnumType) -> Generator[str,None,None]:
     yield (
         'CREATE TYPE {ident} AS ENUM (\n'
         '{labels_part}\n'
@@ -427,7 +427,7 @@ def render_enum_type_sql(pg_enum_type: PgEnumType) -> Generator[str]:
     )
 
 
-def render_aggregate_sql(pg_aggregate: PgAggregate) -> Generator[str]:
+def render_aggregate_sql(pg_aggregate: PgAggregate) -> Generator[str,None,None]:
     properties = [
         '    sfunc = {}'.format(pg_aggregate.sfunc.ident()),
         '    stype = {}'.format(pg_aggregate.stype.ident())
@@ -457,7 +457,7 @@ def render_argument(pg_argument: PgArgument) -> str:
         )
 
 
-def render_schema_sql(pg_schema: PgSchema) -> Generator[str]:
+def render_schema_sql(pg_schema: PgSchema) -> Generator[str,None,None]:
     yield (
         'CREATE SCHEMA IF NOT EXISTS {ident};'
     ).format(
