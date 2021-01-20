@@ -403,15 +403,6 @@ class PgObject:
     def database(self) -> PgDatabase:
         return self.schema.database
 
-    def safe_ident(self):
-        ident_parts = str(self.ident()).split('.')
-        return '.'.join([
-            ip if PgObject.simpletypename_re.match(ip) else
-            '"{}"[]'.format(ip[:-2]) if ip.endswith("[]") else
-            '"{}"'.format(ip)
-            for ip in ident_parts
-        ])
-
 
 class PgSchema(PgObject):
     def __init__(self, name, database, comment=None, owner=None):

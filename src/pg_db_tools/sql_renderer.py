@@ -200,7 +200,7 @@ def render_function_sql(pg_function: PgFunction, replace=False) -> Generator[str
         if pg_function.returns_set:
             returns_part += 'SETOF '
 
-        returns_part += pg_function.return_type.safe_ident()
+        returns_part += pg_function.return_type.ident()
 
     if replace:
         create_part = 'CREATE OR REPLACE FUNCTION'
@@ -240,7 +240,7 @@ def render_function_sql(pg_function: PgFunction, replace=False) -> Generator[str
 
 def render_drop_function_sql(pg_function: PgFunction) -> str:
     args_part = ', '.join(
-        str(argument.data_type.safe_ident())
+        str(argument.data_type.ident())
         for argument in pg_function.arguments
         if argument.mode in ('i', 'o', 'b', 'v')
     )
@@ -447,11 +447,11 @@ def render_aggregate_sql(pg_aggregate: PgAggregate) -> Generator[str,None,None]:
 
 def render_argument(pg_argument: PgArgument) -> str:
     if pg_argument.name is None:
-        return str(pg_argument.data_type.safe_ident())
+        return str(pg_argument.data_type.ident())
     else:
         return '{} {}{}'.format(
             quote_ident(pg_argument.name),
-            pg_argument.data_type.safe_ident(),
+            pg_argument.data_type.ident(),
             '' if pg_argument.default is None
             else ' DEFAULT {}'.format(pg_argument.default)
         )
