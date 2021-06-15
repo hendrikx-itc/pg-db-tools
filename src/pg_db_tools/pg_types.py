@@ -1233,7 +1233,7 @@ class PgFunction(PgObject):
         pg_function = PgFunction(
             schema,
             data['name'],
-            [PgArgument.from_json(argument) for argument in data.get('arguments', [])],
+            [PgArgument.from_json(argument) for argument in data.get('arguments', list())],
             database.get_type_ref(str(data['return_type']))
         )
 

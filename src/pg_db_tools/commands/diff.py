@@ -9,7 +9,7 @@ from pg_db_tools.sql_renderer import render_table_sql, render_function_sql, \
     render_drop_table_sql, render_drop_function_sql, render_trigger_sql, \
     render_drop_trigger_sql, render_composite_type_sql, \
     render_drop_composite_type_sql, render_drop_operator_sql, \
-    render_operator_sql, render_modification
+    render_operator_sql, render_modification, render_view_sql
 
 
 def setup_command_parser(subparsers):
@@ -96,6 +96,10 @@ def diff_schema(current_schema, target_schema):
         sys.stdout.write('\n\n')
         sys.stdout.write(render_drop_table_sql(current_table))
 
+    for current_view in find_removed_views(current_schema, target_schema):
+        sys.stdout.write('\n\n')
+        sys.stdout.write(render_drop_view_sql(current_view))
+
     for current_type in find_removed_types(current_schema, target_schema):
         sys.stdout.write(render_drop_composite_type_sql(current_type))
 
@@ -103,6 +107,13 @@ def diff_schema(current_schema, target_schema):
         sys.stdout.write('\n\n')
 
         for c in render_table_sql(target_table):
+            sys.stdout.write(c)
+            sys.stdout.write('\n')
+
+    for target_view in find_new_views(current_schema, target_schema):
+        sys.stdout.write('\n\n')
+
+        for c in render_view_sql(target_view):
             sys.stdout.write(c)
             sys.stdout.write('\n')
 
@@ -150,6 +161,35 @@ def function_matches(current_function: PgFunction, target_function: PgFunction):
         return False
 
     return True
+
+
+def find_new_views(current_schema, target_schema):
+    for target_view in target_schema.views:
+        try:
+            current_view = next(
+                v
+                for v in current_schema.views
+                if v.name == target_view.name
+            )
+        except StopIteration:
+            yield target_view
+        else:
+            pass
+
+
+def find_removed_views(current_schema, target_schema):
+    for current_view in current_schema.views:
+        try:
+            target_view = next(
+                t
+                for t in target_schema.views
+                if t.name == current_view.name
+            )
+        except StopIteration:
+            # Table not found in target schema
+            yield current_view
+        else:
+            pass
 
 
 def find_new_tables(current_schema, target_schema):
