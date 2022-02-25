@@ -5,7 +5,8 @@ from pg_db_tools import iter_join
 from pg_db_tools.graph import database_to_graph
 from pg_db_tools.pg_types import PgEnumType, PgTable, PgFunction, PgView, \
     PgCompositeType, PgAggregate, PgSequence, PgSchema, PgRole, PgTrigger, \
-    PgCast, PgSetting, PgRow, PgQuery, PgOperator, PgArgument, PgColumn
+    PgCast, PgSetting, PgRow, PgQuery, PgOperator, PgArgument, PgColumn, \
+    PgProcedure
 from pg_db_tools.modification import DropColumn, AddColumn
 
 
@@ -184,7 +185,6 @@ def render_exclude_constraint(exclude_data) -> str:
 
     return ''.join(parts)
 
-
 def render_function_sql(pg_function: PgFunction, replace=False) -> Generator[str,None,None]:
     returns_part = '    RETURNS '
 
@@ -237,6 +237,36 @@ def render_function_sql(pg_function: PgFunction, replace=False) -> Generator[str
             quote_string(escape_string(pg_function.description))
         )
 
+def render_procedure_sql(pg_procedure: PgProcedure, replace=False) -> Generator[str,None,None]:
+    if replace:
+        create_part = 'CREATE OR REPLACE PROCEDURE'
+    else:
+        create_part = 'CREATE PROCEDURE'
+
+    yield (
+        '{} "{}"."{}"({})'.format(
+            create_part, pg_procedure.schema.name, pg_procedure.name,
+            ', '.join(render_argument(argument)
+                      for argument in pg_procedure.arguments)
+        ))
+    yield 'AS $procedure$' if '$$' in str(pg_procedure.src) else 'AS $$'
+    yield str(pg_procedure.src)
+    yield '${}$ LANGUAGE {};'.format(
+        'procedure' if '$$' in str(pg_procedure.src) else '',
+        pg_procedure.language
+    )
+
+    if pg_procedure.description:
+        yield '\nCOMMENT ON FUNCTION "{}"."{}"({}) IS {};'.format(
+            pg_procedure.schema.name,
+            pg_procedure.name,
+            ', '.join(
+                render_argument(argument)
+                for argument in pg_procedure.arguments
+            ),
+            quote_string(escape_string(pg_procedure.description))
+        )
+
 
 def render_drop_function_sql(pg_function: PgFunction) -> str:
     args_part = ', '.join(
@@ -247,6 +277,17 @@ def render_drop_function_sql(pg_function: PgFunction) -> str:
 
     return 'DROP FUNCTION "{}"."{}"({});'.format(
         pg_function.schema.name, pg_function.name, args_part
+    )
+
+
+def render_drop_procedure_sql(pg_procedure: PgProcedure) -> str:
+    args_part = ', '.join(
+        str(argument.data_type.ident())
+        for argument in pg_procedure.arguments
+    )
+
+    return 'DROP PROCEDURE "{}"."{}"({});'.format(
+        pg_procedure.schema.name, pg_procedure.name, args_part
     )
 
 
@@ -489,6 +530,7 @@ sql_renderers = {
     PgSchema: render_schema_sql,
     PgTable: render_table_sql,
     PgFunction: render_function_sql,
+    PgProcedure: render_procedure_sql,
     PgSequence: render_sequence_sql,
     PgView: render_view_sql,
     PgCompositeType: render_composite_type_sql,

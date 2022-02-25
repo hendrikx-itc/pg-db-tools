@@ -39,6 +39,7 @@ class PgDatabase:
         self.tables = {}
         self.composite_types = {}
         self.function = {}
+        self.procedure = {}
         self.objects = []
         self.views = {}
         self.roles = {}
@@ -125,6 +126,12 @@ class PgDatabase:
             if pg_function not in pg_function.schema.functions:
                 pg_function.schema.functions.append(pg_function)
 
+        database.functions = PgProcedure.load_all_from_db(conn, database)
+
+        for pg_procedure in database.procedures.values():
+            if pg_procedure not in pg_procedure.schema.procedures:
+                pg_procedure.schema.procedures.append(pg_procedure)
+
         database.aggregates = PgAggregate.load_all_from_db(conn, database)
 
         for pg_aggregate in database.aggregates.values():
@@ -156,6 +163,7 @@ class PgDatabase:
                             list(database.composite_types.values()) +
                             list(database.tables.values()) +
                             list(database.functions.values()) +
+                            list(database.procedures.values()) +
                             list(database.aggregates.values()) +
                             list(database.views.values()) +
                             list(database.triggers.values()) +
@@ -412,6 +420,7 @@ class PgSchema(PgObject):
         self.composite_types = []
         self.tables: List[PgTable] = []
         self.functions = []
+        self.procedures = []
         self.sequences = []
         self.views = []
         self.foreign_keys = []
@@ -529,7 +538,7 @@ class PgSchema(PgObject):
     def objects(self):
         return self.types + self.enum_types + self.composite_types +\
             self.tables + self.views + self.aggregates +\
-            self.functions + self.sequences
+            self.functions + self.procedures + self.sequences
 
     def get(self, name):
         for obj in self.objects:
@@ -1299,7 +1308,7 @@ class PgFunction(PgObject):
             'FROM pg_proc '
             'JOIN pg_language ON pg_language.oid = pg_proc.prolang '
             'LEFT JOIN pg_description ON pg_description.objoid = pg_proc.oid '
-            'WHERE proisagg IS false'
+            'WHERE proisagg IS false AND prokind = ''f'' '
         )
 
         query_args = tuple()
@@ -1374,6 +1383,147 @@ class PgFunction(PgObject):
         }
 
 
+class PgProcedure(PgObject):
+    def __init__(self, schema, name, arguments):
+        self.schema = schema
+        self.name = name
+        self.arguments = arguments
+        self.src = None
+        self.language = None
+        self.description = None
+        self.object_type = 'procedure'
+
+    def __str__(self):
+        return '"{}"."{}"'.format(self.schema.name, self.name)
+
+    def get_dependencies(self):
+        return [argument.data_type for argument in self.arguments] +\
+            self.database.find_dependencies(self.src)
+
+    @staticmethod
+    def load(database, data):
+        schema = database.register_schema(data['schema'])
+
+        pg_procedure = PgProcedure(
+            schema,
+            data['name'],
+            [PgArgument.from_json(argument) for argument in data.get('arguments', list())]
+        )
+
+        pg_procedure.language = data.get('language')
+        pg_procedure.src = PgSourceCode(data['source'])
+        pg_procedure.description = data.get('description')
+
+        schema.procedures.append(pg_procedure)
+
+        return pg_procedure
+
+    def ident(self) -> str:
+        if self.schema.name in SILENT_SCHEMAS:
+            return self.name
+        else:
+            return '{}.{}'.format(self.schema.name, self.name)
+
+    def to_json(self) -> OrderedDict:
+        attributes = [
+            ('name', self.name),
+            ('schema', self.schema.name),
+            ('language', self.language),
+            ('arguments', [
+                argument.to_json()
+                for argument
+                in self.arguments
+            ])
+        ]
+
+        if self.description is not None:
+            attributes.append(
+                ('description', self.description)
+            )
+
+        attributes.append(('source', self.src))
+
+        return OrderedDict(attributes)
+
+    @staticmethod
+    def load_all_from_db(conn, database):
+        query = (
+            'SELECT pg_proc.oid, pronamespace, proname, '
+            'proargtypes, proallargtypes, proargmodes, proargnames, '
+            'pg_language.lanname, prosrc, '
+            'pg_get_expr(proargdefaults, 0), '
+            'description '
+            'FROM pg_proc '
+            'JOIN pg_language ON pg_language.oid = pg_proc.prolang '
+            'LEFT JOIN pg_description ON pg_description.objoid = pg_proc.oid '
+            'WHERE proisagg IS false AND prokind = ''p'' '
+        )
+
+        query_args = tuple()
+
+        with closing(conn.cursor()) as cursor:
+            cursor.execute(query, query_args)
+
+            rows = cursor.fetchall()
+
+        def function_from_row(row):
+            (
+                oid, namespace_oid, name, arg_type_oids_str,
+                all_arg_type_oids, arg_modes, arg_names, language,
+                src, defaults, description
+            ) = row
+
+            if arg_type_oids_str:
+                arg_type_oids = list(map(int, arg_type_oids_str.split(' ')))
+            else:
+                arg_type_oids = []
+
+            if all_arg_type_oids is None:
+                all_arg_type_oids = arg_type_oids
+
+            if arg_modes is None:
+                arg_modes = len(arg_type_oids) * ['i']
+
+            if arg_names is None:
+                arg_names = len(all_arg_type_oids) * [None]
+
+            arguments = [
+                PgArgument(
+                    empty_str_filter(name),
+                    database.types[type_oid],
+                    arg_mode,
+                    None
+                )
+                for type_oid, name, arg_mode
+                in zip(all_arg_type_oids, arg_names, arg_modes)
+            ]
+
+            if defaults:
+                defaults = [d.strip() for d in str(defaults).split(',')]
+            else:
+                defaults = []
+            defaults = [None] * (len(arguments) - len(defaults)) + defaults
+            for (argument, default) in zip(arguments, defaults):
+                argument.default = default
+
+            pg_procedure = PgProcedure(
+                database.schemas[namespace_oid], name, arguments
+            )
+            pg_procedure.language = language
+            pg_procedure.src = PgSourceCode(src.strip())
+
+            if description is not None:
+                pg_procedure.description = PgDescription(description)
+
+            return pg_procedure
+
+        return {
+            row[0]: function_from_row(row)
+            for row in rows
+        }
+
+
+    
 class PgTrigger(PgObject):
     TRIGGER_TYPE_ROW = (1 << 0)
     TRIGGER_TYPE_BEFORE = (1 << 1)
@@ -2682,6 +2832,7 @@ object_loaders = {
     'schema': PgSchema.load,
     'table': PgTable.load,
     'function': PgFunction.load,
+    'procedure': PgProcedure.load,
     'view': PgView.load,
     'composite_type': PgCompositeType.load,
     'enum_type': PgEnumType.load,

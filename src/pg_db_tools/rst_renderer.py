@@ -58,6 +58,12 @@ def render_rst_schema(schema):
         for pg_function in schema.functions:
             yield render_function(pg_function)
 
+    if schema.procedures:
+        yield '{}\n'.format(header(2, 'Procedures'))
+
+        for pg_procedure in schema.procedures:
+            yield render_procedure(pg_procedure)
+
     if schema.sequences:
         yield '{}\n'.format(header(2, 'Sequences'))
 
@@ -142,6 +148,31 @@ def render_function(pg_function):
             )
         ),
         '' if pg_function.description is None else pg_function.description
+    )
+
+
+def render_procedure(pg_procedure):
+    def render_argument(argument):
+        if argument.name is None:
+            return str(argument.data_type)
+        else:
+            return '{} {}'.format(argument.name, str(argument.data_type))
+
+    return (
+        '{}\n'
+        '{}\n\n'
+    ).format(
+        header(
+            3,
+            '{}({})'.format(
+                pg_procedure.name,
+                ', '.join(
+                    render_argument(argument)
+                    for argument in pg_procedure.arguments
+                )
+            )
+        ),
+        '' if pg_procedure.description is None else pg_procedure.description
     )
 
 

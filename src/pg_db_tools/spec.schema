@@ -23,6 +23,9 @@
                         "$ref": "#/definitions/function"
                     },
                     {
+                        "$ref": "#/definitions/procedure"
+                    },
+                    {
                         "$ref": "#/definitions/schema"
                     },
                     {
@@ -230,6 +233,66 @@
             },
             "required": [
                 "function"
+            ],
+            "additionalProperties": false
+        },
+        "procedure": {
+            "type": "object",
+            "properties": {
+                "procedure": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string"
+                        },
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": {
+                            "type": "string"
+                        },
+                        "language": {
+                            "type": "string"
+                        },
+                        "arguments": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "data_type": {
+                                        "type": "string"
+                                    },
+                                    "mode": {
+                                        "type": "string"
+                                    },
+                                    "default": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "data_type"
+                                ],
+                                "additionalProperties": false
+                            },
+                            "additionalItems": false
+                        },
+                        "source": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "name",
+                        "schema",
+                        "source"
+                    ],
+                    "additionalProperties": false
+                }
+            },
+            "required": [
+                "procedure"
             ],
             "additionalProperties": false
         },

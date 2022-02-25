@@ -4,12 +4,13 @@ Provides the 'diff' sub-command including argument parsing
 import os
 import sys
 
-from pg_db_tools.pg_types import load, PgSchema, PgFunction
+from pg_db_tools.pg_types import load, PgSchema, PgFunction, PgProcedure
 from pg_db_tools.sql_renderer import render_table_sql, render_function_sql, \
     render_drop_table_sql, render_drop_function_sql, render_trigger_sql, \
     render_drop_trigger_sql, render_composite_type_sql, \
     render_drop_composite_type_sql, render_drop_operator_sql, \
-    render_operator_sql, render_modification, render_view_sql
+    render_operator_sql, render_modification, render_view_sql, \
+    render_procedure_sql
 
 
 def setup_command_parser(subparsers):
@@ -92,6 +93,10 @@ def diff_schema(current_schema, target_schema):
         sys.stdout.write('\n\n')
         sys.stdout.write(render_drop_function_sql(current_function))
 
+    for current_procedure in find_removed_procedures(current_schema, target_schema):
+        sys.stdout.write('\n\n')
+        sys.stdout.write(render_drop_procedure_sql(current_procedure))
+
     for current_table in find_removed_tables(current_schema, target_schema):
         sys.stdout.write('\n\n')
         sys.stdout.write(render_drop_table_sql(current_table))
@@ -138,10 +143,24 @@ def diff_schema(current_schema, target_schema):
             sys.stdout.write(c)
             sys.stdout.write('\n')
 
+    for target_procedure in find_new_procedures(current_schema, target_schema):
+        sys.stdout.write('\n\n')
+
+        for c in render_procedure_sql(target_procedure):
+            sys.stdout.write(c)
+            sys.stdout.write('\n')
+
     for target_function in find_modified_functions(current_schema, target_schema):
         sys.stdout.write('\n\n')
 
         for c in render_function_sql(target_function, replace=True):
+            sys.stdout.write(c)
+            sys.stdout.write('\n')
+
+    for target_procedure in find_modified_procedures(current_schema, target_schema):
+        sys.stdout.write('\n\n')
+
+        for c in render_procedure_sql(target_procedure, replace=True):
             sys.stdout.write(c)
             sys.stdout.write('\n')
 
@@ -159,6 +178,20 @@ def function_matches(current_function: PgFunction, target_function: PgFunction):
 
     if current_function.return_type != target_function.return_type:
         return False
+
+    return True
+
+
+def procedure_matches(current_procedure: PgProcedure, target_procedure: PgProcedure):
+    if current_procedure.name != target_procedure.name:
+        return False
+
+    if len(current_procedure.arguments) != len(target_procedure.arguments):
+        return False
+
+    for current_argument, target_argument in zip(current_procedure.arguments, target_procedure.arguments):
+        if current_argument.data_type != target_argument.data_type:
+            return False
 
     return True
 
@@ -287,6 +320,54 @@ def find_modified_functions(current_schema, target_schema):
         else:
             if target_function.src != current_function.src:
                 yield target_function
+
+
+def find_new_procedures(current_schema, target_schema):
+    # Look for new procedures
+    for target_procedure in target_schema.procedures:
+        try:
+            current_procedure = next(
+                f
+                for f in current_schema.procedures
+                if procedure_matches(f, target_procedure)
+            )
+        except StopIteration:
+            # Procedure not found in current schema
+            yield target_function
+        else:
+            pass
+
+
+def find_removed_procedures(current_schema, target_schema):
+    # Look for procedures to remove
+    for current_procedure in current_schema.procedures:
+        try:
+            target_procedure = next(
+                f
+                for f in target_schema.procedures
+                if procedure_matches(f, current_procedure)
+            )
+        except StopIteration:
+            # Procedure not found in target schema
+            yield current_procedure
+        else:
+            pass
+
+
+def find_modified_functions(current_schema, target_schema):
+    # Look for procedures to remove
+    for current_procedure in current_schema.procedures:
+        try:
+            target_function = next(
+                f
+                for f in target_schema.procedures
+                if procedure_matches(f, current_procedure)
+            )
+        except StopIteration:
+            pass
+        else:
+            if target_procedure.src != current_procedure.src:
+                yield target_procedure
 
 
 def find_new_triggers(current_db, target_db):
