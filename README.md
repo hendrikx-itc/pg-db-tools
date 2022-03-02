@@ -1,6 +1,7 @@
 # PostgreSQL Database Tools
 
 [![pypi](https://img.shields.io/pypi/v/pg-db-tools.svg)](https://pypi.org/project/pg-db-tools/)
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/3026e19620fe4342a4ff108901cb2192)](https://www.codacy.com/gh/hendrikx-itc/pg-db-tools/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=hendrikx-itc/pg-db-tools&amp;utm_campaign=Badge_Grade)
 
 Design, create, maintain and document a PostgreSQL databases using a
 yaml based descriptions.
