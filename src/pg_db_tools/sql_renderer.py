@@ -377,11 +377,11 @@ def render_query_sql(pg_query) -> List[str]:
         query = 'SELECT {}'.format(pg_query.query)
     else:
         query = pg_query.query
-    if pg_query.fromtable:
+    if pg_query.from_table:
         return [
             '{} FROM {};'.format(
                 query,
-                pg_query.fromtable
+                pg_query.from_table
             )
         ]
     else:
