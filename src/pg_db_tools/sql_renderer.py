@@ -185,6 +185,7 @@ def render_exclude_constraint(exclude_data) -> str:
 
     return ''.join(parts)
 
+
 def render_function_sql(pg_function: PgFunction, replace=False) -> Generator[str,None,None]:
     returns_part = '    RETURNS '
 
@@ -236,6 +237,7 @@ def render_function_sql(pg_function: PgFunction, replace=False) -> Generator[str
             ),
             quote_string(escape_string(pg_function.description))
         )
+
 
 def render_procedure_sql(pg_procedure: PgProcedure, replace=False) -> Generator[str,None,None]:
     if replace:
@@ -427,6 +429,10 @@ def render_view_sql(pg_view: PgView) -> Generator[str,None,None]:
             quote_ident(pg_view.name),
             grantee
         )
+
+
+def render_drop_view_sql(pg_view: PgView) -> str:
+    return 'DROP VIEW "{}"."{}"'.format(pg_view.schema.name, pg_view.name)
 
 
 def render_composite_type_sql(pg_composite_type: PgCompositeType) -> Generator[str,None,None]:
