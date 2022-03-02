@@ -605,8 +605,57 @@ class PgSchema(PgObject):
         return OrderedDict(arguments)
 
 
+class PgColumn(PgObject):
+    name: str
+    data_type: str
+
+    def __init__(self, name: str, data_type: str):
+        self.name = name
+        self.data_type = data_type
+        self.generated_identity = None
+        self.nullable = False
+        self.description = None
+        self.default = None
+        self.comment = None
+
+    def __str__(self) -> str:
+        return "{} {}".format(self.name, self.data_type)
+
+    def to_json(self) -> OrderedDict:
+        attributes = [
+            ("name", self.name),
+            ("data_type", self.data_type.to_json(short=True, show_default=False)),
+            ("nullable", self.nullable),
+        ]
+
+        if self.generated_identity is not None:
+            attributes.append(("generated_identity", self.generated_identity))
+
+        if self.description is not None:
+            attributes.append(("description", self.description))
+
+        if self.default is not None:
+            attributes.append(("default", self.default))
+
+        return OrderedDict(attributes)
+
+    @staticmethod
+    def load(database, data):
+        column = PgColumn(data["name"], database.get_type_ref(str(data["data_type"])))
+        column.generated_identity = data.get("generated_identity")
+        column.description = data.get("description")
+        column.nullable = data.get("nullable", True)
+        column.default = data.get("default", None)
+
+        return column
+
+
 class PgTable(PgObject):
-    def __init__(self, schema, name, columns):
+    schema: str
+    name: str
+    columns: List[PgColumn]
+
+    def __init__(self, schema: str, name: str, columns: List[PgColumn]):
         self.schema = schema
         self.name = name
         self.columns = columns
@@ -621,10 +670,10 @@ class PgTable(PgObject):
         self.owner = None
         self.privileges = []
         self.persistence = "permanent"
-        self.partitiontype = None
-        self.partitioncolumns = []
+        self.partition_type = None
+        self.partition_columns = []
 
-    def __str__(self):
+    def __str__(self) -> str:
         return '"{}"."{}"'.format(self.schema.name, self.name)
 
     def get_dependencies(self):
@@ -748,10 +797,10 @@ class PgTable(PgObject):
 
         for row in rows:
             if row[0] in tables:
-                tables[row[0]].partitiontype = "range" if row[1] == "r" else "list"
+                tables[row[0]].partition_type = "range" if row[1] == "r" else "list"
                 # -1 on the next line because postgres uses 1-based counting and
                 # Python 0-based counting
-                tables[row[0]].partitioncolumns = [tables[row[0]].columns[row[2] - 1]]
+                tables[row[0]].partition_columns = [tables[row[0]].columns[row[2] - 1]]
 
         return tables
 
@@ -813,8 +862,8 @@ class PgTable(PgObject):
         ]
 
         if "partition" in data:
-            table.partitiontype = data["partition"]["type"]
-            table.partitioncolumns = [
+            table.partition_type = data["partition"]["type"]
+            table.partition_columns = [
                 column["name"] for column in data["partition"]["columns"]
             ]
 
@@ -912,19 +961,19 @@ class PgTable(PgObject):
                     )
                 )
 
-            if self.partitiontype:
+            if self.partition_type:
                 attributes.append(
                     (
                         "partition",
                         [
                             OrderedDict(
                                 [
-                                    ("type", self.partitiontype),
+                                    ("type", self.partition_type),
                                     (
                                         "columns",
                                         [
                                             OrderedDict([("name", column)])
-                                            for column in self.partitioncolumns
+                                            for column in self.partition_columns
                                         ],
                                     ),
                                 ]
@@ -1038,48 +1087,6 @@ class PgCheck(PgObject):
         for table_oid, name, expression in rows:
             table = database.tables[table_oid]
             table.checks.append(PgCheck(name, expression))
-
-
-class PgColumn(PgObject):
-    def __init__(self, name, data_type):
-        self.name = name
-        self.data_type = data_type
-        self.generated_identity = None
-        self.nullable = False
-        self.description = None
-        self.default = None
-        self.comment = None
-
-    def __str__(self):
-        return "{} {}".format(self.name, self.data_type)
-
-    def to_json(self) -> OrderedDict:
-        attributes = [
-            ("name", self.name),
-            ("data_type", self.data_type.to_json(short=True, show_default=False)),
-            ("nullable", self.nullable),
-        ]
-
-        if self.generated_identity is not None:
-            attributes.append(("generated_identity", self.generated_identity))
-
-        if self.description is not None:
-            attributes.append(("description", self.description))
-
-        if self.default is not None:
-            attributes.append(("default", self.default))
-
-        return OrderedDict(attributes)
-
-    @staticmethod
-    def load(database, data):
-        column = PgColumn(data["name"], database.get_type_ref(str(data["data_type"])))
-        column.generated_identity = data.get("generated_identity")
-        column.description = data.get("description")
-        column.nullable = data.get("nullable", True)
-        column.default = data.get("default", None)
-
-        return column
 
 
 class PgForeignKey:

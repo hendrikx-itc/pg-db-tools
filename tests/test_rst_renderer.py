@@ -5,7 +5,7 @@ import unittest
 from io import StringIO
 
 from pg_db_tools.pg_types import load
-from pg_db_tools.rst_renderer import RstRenderer
+from pg_db_tools.rst_renderer import render_rst_file
 
 
 json_data = """
@@ -32,7 +32,9 @@ objects:
           data_type: integer
         - name: created
           data_type: timestamp with time zone
-      primary_key: ['id']
+      primary_key:
+        name: order_pkey
+        columns: ['id']
 
   - table:
       name: OrderLine
@@ -69,8 +71,7 @@ class TestRstRenderer(unittest.TestCase):
 
         out = StringIO()
 
-        renderer = RstRenderer()
-        renderer.render(out, database)
+        render_rst_file(out, database)
 
         out.seek(0)
 

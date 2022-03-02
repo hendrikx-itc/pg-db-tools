@@ -34,7 +34,9 @@ objects:
           data_type: timestamp with time zone
           nullable: false
           default: now()
-      primary_key: ['id']
+      primary_key:
+        name: order_pkey
+        columns: ['id']
 
   - table:
       name: OrderLine

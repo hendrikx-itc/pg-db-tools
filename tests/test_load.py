@@ -31,8 +31,9 @@ objects:
           data_type: integer
         - name: created
           data_type: timestamp with time zone
-      primary_key: ['id']
-
+      primary_key:
+        name: order_pkey
+        columns: ['id']
   - table:
       name: OrderLine
       schema: shop
@@ -66,6 +67,7 @@ class TestLoad(unittest.TestCase):
     def test_load(self):
         database = load(StringIO(json_data))
 
-        self.assertEqual(len(database.schemas), 1)
+        # We expect the 'shop' schema and the default 'public' schema
+        self.assertEqual(len(database.schemas), 2)
 
         self.assertTrue('shop' in database.schemas)

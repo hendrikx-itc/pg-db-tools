@@ -11,6 +11,17 @@
             },
             "additionalItems": false
         },
+        "types": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "oneOf": [
+                    {
+                        "$ref": "#/definitions/type_enum"
+                    }
+                ]
+            }
+        },
         "objects": {
             "type": "array",
             "items": {
@@ -118,6 +129,28 @@
                         "name"
                     ],
                     "additionalProperties": false
+                }
+            }
+        },
+        "type_enum": {
+            "type": "object",
+            "required": [
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Name of the enum type"
+                },
+                "schema": {
+                    "type": "string",
+                    "description": "Schema containing enum type"
+                },
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "additionalItems": false
                 }
             }
         },

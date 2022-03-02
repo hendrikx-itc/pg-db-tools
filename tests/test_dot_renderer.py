@@ -32,7 +32,9 @@ objects:
           data_type: integer
         - name: created
           data_type: timestamp with time zone
-      primary_key: ['id']
+      primary_key:
+        name: order_pkey
+        columns: ['id']
 
   - table:
       name: OrderLine
