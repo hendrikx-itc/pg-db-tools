@@ -9,20 +9,15 @@ from pg_db_tools.rst_renderer import render_rst_directory
 
 
 def setup_command_parser(subparsers):
-    """
-    Sets up a new sub parser for the generate command and adds it to the
-    provided subparsers
-    """
+    """Register a new sub-parser for the generate command."""
     parser = subparsers.add_parser(
-        'generate', help='generate documentation source files'
+        "generate", help="generate documentation source files"
     )
 
-    parser.add_argument(
-        'schema', default='schema.yml', help='schema definition file'
-    )
+    parser.add_argument("schema", default="schema.yml", help="schema definition file")
 
     parser.add_argument(
-        'directory', default='doc', help='target directory for documentation'
+        "directory", default="doc", help="target directory for documentation"
     )
 
     parser.set_defaults(cmd=init_command)
@@ -32,15 +27,15 @@ def init_command(args):
     """
     Entry point for the init sub-command after parsing the arguments
     """
-    with open(args.schema) as infile:
+    with open(args.schema, encoding="UTF-8") as infile:
         data = load(infile)
 
-    schema_directory = os.path.join(args.directory, 'schema')
+    schema_directory = os.path.join(args.directory, "schema")
 
     try:
         os.makedirs(schema_directory)
-    except OSError as e:
-        if e.errno != errno.EEXIST:
+    except OSError as exc:
+        if exc.errno != errno.EEXIST:
             raise
 
     render_rst_directory(schema_directory, data)

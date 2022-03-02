@@ -52,13 +52,6 @@ def sql_command(args):
     try:
         data = load(args.infile)
     except SchemaException as exc:
-        raise exc
-        def error_chain(e):
-            if e.__cause__:
-                return "{}: {}".format(str(e), error_chain(e.__cause__))
-            else:
-                return str(e)
-
         sys.stderr.write("Error loading schema: {}\n".format(error_chain(exc)))
         return
 
@@ -68,3 +61,10 @@ def sql_command(args):
     rendered_chunks = renderer.render_chunks(data)
 
     out_file.writelines(rendered_chunks)
+
+
+def error_chain(e):
+    if e.__cause__:
+        return "{}: {}".format(str(e), error_chain(e.__cause__))
+    else:
+        return str(e)
