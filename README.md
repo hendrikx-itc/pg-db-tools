@@ -142,6 +142,10 @@ This tool is specifically not meant as a cross database toolset, because
 that usually causes compatibility headaches and multiple partially
 supported database engines.
 
+## Contributing
+
+Read the [contributing guide](CONTRIBUTING.md) if you want to help develop or improve Minerva.
+
 ## License
 
 pg-db-tools is distributed under [AGPL-3.0-only](LICENSE).
