@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 import setuptools
 
-with open("README.rst", "r") as fh:
-    long_description = fh.read()
-
 
 setuptools.setup(
     name='pg-db-tools',
@@ -12,7 +9,6 @@ setuptools.setup(
     author='Alfred Blokland',
     author_email='alfred.blokland@hendrikx-itc.nl',
     url='http://www.hendrikx-itc.nl',
-    long_description=long_description,
     packages=[
         'pg_db_tools',
         'pg_db_tools.commands'
