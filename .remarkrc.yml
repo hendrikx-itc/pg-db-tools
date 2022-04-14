@@ -1,0 +1,4 @@
+settings:
+  bullet: "*"
+plugins:
+  - ["remark-lint-list-item-indent", "space"]
