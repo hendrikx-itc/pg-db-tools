@@ -1,6 +1,7 @@
 """
 Provides the 'diff' sub-command including argument parsing
 """
+from typing import Generator
 import os
 import sys
 
@@ -297,7 +298,7 @@ def find_new_functions(current_schema, target_schema):
             pass
 
 
-def find_removed_functions(current_schema, target_schema):
+def find_removed_functions(current_schema, target_schema) -> Generator[PgFunction, None, None]:
     """Return functions that don't exist in the target schema."""
     for current_function in current_schema.functions:
         try:

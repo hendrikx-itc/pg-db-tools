@@ -1,6 +1,4 @@
-"""
-Provides the 'sql' sub-command including argument parsing
-"""
+"""Provides the 'sql' sub-command including argument parsing."""
 import argparse
 import sys
 from io import TextIOWrapper

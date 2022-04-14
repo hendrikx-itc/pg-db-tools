@@ -18,6 +18,8 @@ class AddColumn(Modification):
 
 
 class Diff:
+    steps: List[Modification]
+
     def __init__(self, steps: List[Modification]=None):
         if steps is None:
             self.steps: List[Modification] = []

@@ -1,17 +1,19 @@
-"""
-Provides all database object filtering classes
-"""
+"""Provides all database object filtering classes."""
 
 
 class ObjectFilter:
+    """Base class for type specific filters."""
+
     def include(self, db_object):
         """
-        Return True if the object should be included and false otherwise
+        Return True if the object should be included and False otherwise
         """
         raise NotImplementedError()
 
 
 class TableExclusionFilter(ObjectFilter):
+    """Filter for excluding specific tables."""
+
     def __init__(self, exclusion_list):
         self.exclusion_list = exclusion_list
 
@@ -20,6 +22,8 @@ class TableExclusionFilter(ObjectFilter):
 
 
 class TableInclusionFilter(ObjectFilter):
+    """Filter for including specific tables."""
+
     def __init__(self, inclusion_list):
         self.inclusion_list = inclusion_list
 

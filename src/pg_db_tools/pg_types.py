@@ -1,4 +1,5 @@
-from typing import List
+"""Python representation of PostgreSQL object types."""
+from typing import List, Optional
 import copy
 from contextlib import closing
 import json
@@ -186,7 +187,7 @@ class PgDatabase:
             self.schemas[name] = schema
             return schema
 
-    def get_schema_by_name(self, name: str):
+    def get_schema_by_name(self, name: str) -> Optional["PgSchema"]:
         schemas = [schema for schema in self.schemas.values() if schema.name == name]
 
         if schemas:
@@ -310,7 +311,7 @@ class PgDatabase:
                     depth -= 1
                 elif remaining_text[loc2] == "," and depth == 1:
                     commas += 1
-            arguments = remaining_text[loc + 1 : loc2]
+            arguments = remaining_text[loc + 1: loc2]
             schema = self.get_schema_by_name(schema_name)
             if arguments.strip():
                 argument_number = commas + 1
@@ -374,7 +375,13 @@ def load(infile: io.IOBase) -> PgDatabase:
 
 
 class PgObject:
+    dependencies: List["PgObject"]
+    schema: "PgSchema"
     simpletypename_re = re.compile(r"[a-z][a-z0-9_\s]*(?:\[\])?$")
+
+    def __init__(self):
+        self.dependencies = []
+        self.schema = None
 
     # abstract class, serving as a base class for the classes below
     def is_blocked(self, blockingobjects, samenameblocks=True):
@@ -400,7 +407,7 @@ class PgObject:
     def build_dependencies(self):
         self.dependencies = self.get_dependencies() + [self.schema]
 
-    def get_dependencies(self):
+    def get_dependencies(self) -> List["PgObject"]:
         # To be overwritten in child classes. The objects this depends on.
         return []
 

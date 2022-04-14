@@ -1,3 +1,10 @@
+"""
+pg_db_tools provides a command-line tool for managing PostgreSQL database schemas.
+"""
+
+
+class ConfigurationError(Exception):
+    pass
 
 
 def iter_join(separator, iterable):
