@@ -23,7 +23,7 @@ def setup_command_parser(subparsers):
         '--output-file', '-o', help='write output to file'
     )
     parser_sql.add_argument(
-        '--if-not-exists', default=False, action='store_true',
+        '--if-not-exists', default=True, action='store_true',
         help='create database objects only if they don''t exist yet'
     )
     parser_sql.add_argument(

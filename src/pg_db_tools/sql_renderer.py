@@ -36,6 +36,17 @@ def render_setting_sql(pg_setting) -> List[str]:
     ]
 
 
+def render_query_sql(pg_query) -> List[str]:
+    if pg_query.select:
+        query = "SELECT {}".format(pg_query.query)
+    else:
+        query = pg_query.query
+    if pg_query.from_table:
+        return ["{} FROM {};".format(query, pg_query.from_table)]
+    else:
+        return ["{};".format(query)]
+
+
 def render_table_sql(table) -> Generator[str, None, None]:
     options = []
     post_options = []
@@ -112,6 +123,10 @@ def render_table_sql(table) -> Generator[str, None, None]:
                 grants, quote_ident(table.schema.name), quote_ident(table.name), role
             )
         )
+
+    for query in table.queries:
+        for line in render_query_sql(query):
+            yield line
 
 
 def render_drop_table_sql(table: PgTable) -> str:
@@ -246,6 +261,10 @@ def render_function_sql(
             quote_string(escape_string(pg_function.description)),
         )
 
+    for query in pg_function.queries:
+        for line in render_query_sql(query):
+            yield line
+
 
 def render_procedure_sql(
     pg_procedure: PgProcedure, replace=False
@@ -276,6 +295,10 @@ def render_procedure_sql(
             ", ".join(render_argument(argument) for argument in pg_procedure.arguments),
             quote_string(escape_string(pg_procedure.description)),
         )
+
+    for query in pg_procedure.queries:
+        for line in render_query_sql(query):
+            yield line
 
 
 def render_drop_function_sql(pg_function: PgFunction) -> str:
@@ -378,17 +401,6 @@ def render_row_sql(pg_row) -> List[str]:
     ]
 
 
-def render_query_sql(pg_query) -> List[str]:
-    if pg_query.select:
-        query = "SELECT {}".format(pg_query.query)
-    else:
-        query = pg_query.query
-    if pg_query.from_table:
-        return ["{} FROM {};".format(query, pg_query.from_table)]
-    else:
-        return ["{};".format(query)]
-
-
 def render_role_sql(pg_role: PgRole) -> List[str]:
     attributes = (["LOGIN"] if pg_role.login else []) + [
         "SUPERUSER" if pg_role.super else "NOSUPERUSER",
@@ -436,6 +448,10 @@ def render_view_sql(pg_view: PgView) -> Generator[str, None, None]:
             quote_ident(pg_view.name),
             grantee,
         )
+
+    for query in pg_view.queries:
+        for line in render_query_sql(query):
+            yield line
 
 
 def render_drop_view_sql(pg_view: PgView) -> str:
@@ -491,6 +507,10 @@ def render_aggregate_sql(pg_aggregate: PgAggregate) -> Generator[str, None, None
         properties=",\n".join(properties),
     )
 
+    for query in pg_aggregate.queries:
+        for line in render_query_sql(query):
+            yield line
+
 
 def render_argument(pg_argument: PgArgument) -> str:
     if pg_argument.name is None:
@@ -528,7 +548,12 @@ def render_schema_sql(pg_schema: PgSchema) -> Generator[str, None, None]:
                 priv[1], quote_ident(pg_schema.name), quote_ident(priv[0].name)
             )
         )
-
+    for priv in pg_schema.default_privileges:
+        yield (
+            "ALTER DEFAULT PRIVILEGES IN SCHEMA {} GRANT {} ON {} TO {};\n".format(
+                quote_ident(pg_schema.name), priv[2], priv[1], quote_ident(priv[0].name)
+            )
+        )
 
 sql_renderers = {
     PgSetting: render_setting_sql,
@@ -577,9 +602,10 @@ def render_modification(modification):
 
 class SqlRenderer:
     def __init__(self):
-        self.if_not_exists = False
+        self.if_not_exists = True
 
     def render(self, out_file, database):
+
         graph = database_to_graph(database)
 
         rendered_chunks = self.render_chunks(database)
@@ -636,7 +662,7 @@ class SqlRenderer:
 
     def create_extension_statements(self, database):
         options = []
-
+        
         if self.if_not_exists:
             options.append("IF NOT EXISTS")
 

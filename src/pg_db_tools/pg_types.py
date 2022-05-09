@@ -449,9 +449,10 @@ class PgSchema(PgObject):
         self.comment = comment
         self.owner = owner
         self.privileges = []
+        self.default_privileges = []
 
     def get_dependencies(self):
-        return [priv[0] for priv in self.privileges] + (
+        return [priv[0] for priv in (self.privileges + self.default_privileges)] + (
             [self.owner] if self.owner else []
         )
 
@@ -504,6 +505,10 @@ class PgSchema(PgObject):
         for right in data.get("privileges", []):
             schema.privileges.append(
                 (database.get_role_by_name(right["role"]), right["privilege"])
+            )
+        for right in data.get("default-privileges", []):
+            schema.default_privileges.append(
+                (database.get_role_by_name(right["role"]), right["objclass"], right["privilege"])
             )
 
         return schema
@@ -606,10 +611,103 @@ class PgSchema(PgObject):
                     ],
                 )
             )
+        if self.default_privileges:
+            grantees = set([(priv[0], priv[1]) for priv in self.privileges])
+            arguments.append(
+                (
+                    "default-privileges",
+                    [
+                        OrderedDict(
+                            [
+                                ("role", grantee[0].name),
+                                ("objclass", grantee[1]),
+                                (
+                                    "privilege",
+                                    ",".join(
+                                        [
+                                            priv[2]
+                                            for priv in self.privileges
+                                            if priv[0] == grantee[0] and priv[1] == grantee[1]
+                                        ]
+                                    ),
+                                ),
+                            ]
+                        )
+                        for grantee in grantees
+                    ],
+                )
+            )
+            
         if self.owner:
             arguments.append(("owner", self.owner.name))
 
         return OrderedDict(arguments)
+
+
+class PgQuery(PgObject):
+    def __init__(self, query, select=True, from_table=None):
+        self.query = query
+        self.select = select
+        self.from_table = from_table
+        self._schema = None
+        self._database = None
+        self.object_type = "query"
+
+    def get_dependencies(self):
+        result = self.database.find_dependencies(self.query)
+        if self.from_table:
+            result.append(self.from_table)
+        return result
+
+    @property
+    def schema(self):
+        if not self._schema:
+            dependencies = list(self.get_dependencies())
+            for depend in dependencies:
+                if depend.schema.name not in SKIPPED_SCHEMAS:
+                    self._schema = depend.schema
+            else:
+                for schema in self.database.schemas.values():
+                    if schema.name not in SKIPPED_SCHEMAS:
+                        self._schema = schema
+        return self._schema
+
+    @property
+    def database(self):
+        return self._database
+
+    def set_database(self, database):
+        self._database = database
+
+    @property
+    def name(self):
+        return self.query
+
+    @staticmethod
+    def load_all_from_db(conn, database):
+        return []  # cannot be loaded from database, have to be added manually
+
+    @staticmethod
+    def load(database, data):
+        query = PgQuery(data["query"], data.get("select", True), data.get("from"))
+        query.set_database(database)
+        return query
+
+    def to_json(self):
+        attributes = [("query", self.query), ("select", self.select)]
+        if self.from_table:
+            attributes.append(
+                (
+                    "from",
+                    OrderedDict(
+                        [
+                            ("schema", self.from_table.schema.name),
+                            ("table", self.from_table.table.name),
+                        ]
+                    ),
+                )
+            )
+        return OrderedDict(attributes)
 
 
 class PgColumn(PgObject):
@@ -679,6 +777,7 @@ class PgTable(PgObject):
         self.persistence = "permanent"
         self.partition_type = None
         self.partition_columns = []
+        self.queries = []
 
     def __str__(self) -> str:
         return '"{}"."{}"'.format(self.schema.name, self.name)
@@ -688,6 +787,9 @@ class PgTable(PgObject):
             self.database.get_role_by_name(priv[0]) for priv in self.privileges
         ]
 
+        for query in self.queries:
+            dependencies += query.get_dependencies()
+        
         if self.inherits:
             dependencies.append(self.inherits)
         if self.owner:
@@ -874,6 +976,11 @@ class PgTable(PgObject):
                 column["name"] for column in data["partition"]["columns"]
             ]
 
+        if "postqueries" in data:
+            for postquery in data["postqueries"]:
+                table.queries.append(PgQuery.load(database, postquery))
+            
+            
         schema.tables.append(table)
 
         return table
@@ -986,6 +1093,16 @@ class PgTable(PgObject):
                                 ]
                             )
                         ],
+                    )
+                )
+
+            if self.queries:
+                attributes.append(
+                    (
+                        "postqueries",
+                        [
+                            query.toJson(query) for query in self.queries
+                        ]
                     )
                 )
 
@@ -1290,16 +1407,20 @@ class PgFunction(PgObject):
         self.strict = False
         self.secdef = False
         self.object_type = "function"
+        self.queries = []
 
     def __str__(self):
         return '"{}"."{}"'.format(self.schema.name, self.name)
 
     def get_dependencies(self):
-        return (
+        result = (
             [argument.data_type for argument in self.arguments]
             + [self.return_type]
             + self.database.find_dependencies(self.src)
         )
+        for query in self.queries:
+            result += query.get_dependencies()
+        return result
 
     @staticmethod
     def load(database, data):
@@ -1323,6 +1444,10 @@ class PgFunction(PgObject):
         pg_function.strict = data.get("strict", False)
         pg_function.secdef = data.get("secdef", False)
 
+        if "postqueries" in data:
+            for postquery in data["postqueries"]:
+                pg_function.queries.append(PgQuery.load(database, postquery))
+            
         schema.functions.append(pg_function)
 
         return pg_function
@@ -1357,6 +1482,15 @@ class PgFunction(PgObject):
             attributes.append(("description", self.description))
 
         attributes.append(("source", self.src))
+        if self.queries:
+            attributes.append(
+                (
+                    "postqueries",
+                    [
+                        query.toJson(query) for query in self.queries
+                    ]
+                )
+            )
 
         return OrderedDict(attributes)
 
@@ -1468,14 +1602,18 @@ class PgProcedure(PgObject):
         self.language = None
         self.description = None
         self.object_type = "procedure"
+        self.queries = []
 
     def __str__(self):
         return '"{}"."{}"'.format(self.schema.name, self.name)
 
     def get_dependencies(self):
-        return [
+        result = [
             argument.data_type for argument in self.arguments
         ] + self.database.find_dependencies(self.src)
+        for query in self.queries:
+            result += query.get_dependencies()
+        return result
 
     @staticmethod
     def load(database, data):
@@ -1493,6 +1631,10 @@ class PgProcedure(PgObject):
         pg_procedure.language = data.get("language")
         pg_procedure.src = PgSourceCode(data["source"])
         pg_procedure.description = data.get("description")
+
+        if "postqueries" in data:
+            for postquery in data["postqueries"]:
+                pg_procedure.queries.append(PgQuery.load(database, postquery))
 
         schema.procedures.append(pg_procedure)
 
@@ -1516,7 +1658,17 @@ class PgProcedure(PgObject):
             attributes.append(("description", self.description))
 
         attributes.append(("source", self.src))
-
+        
+        if self.queries:
+            attributes.append(
+                (
+                    "postqueries",
+                    [
+                        query.toJson(query) for query in self.queries
+                    ]
+                )
+            )
+            
         return OrderedDict(attributes)
 
     @staticmethod
@@ -2059,6 +2211,7 @@ class PgAggregate(PgObject):
         self.sfunc = None
         self.stype = None
         self.object_type = "aggregate"
+        self.queries = []
 
     def ident(self) -> str:
         if self.schema.name in SILENT_SCHEMAS:
@@ -2067,10 +2220,12 @@ class PgAggregate(PgObject):
             return "{}.{}".format(self.schema.name, self.name)
 
     def get_dependencies(self):
-        return [argument.data_type for argument in self.arguments] + [
-            self.sfunc.dereference(),
-            self.stype.dereference(),
-        ]
+        dependencies = [argument.data_type for argument in self.arguments]
+        dependencies.append(self.sfunc.dereference())
+        dependencies.append(self.stype.dereference())
+        for query in self.queries:
+            dependencies += query.get_dependencies()
+        return dependencies
 
     @staticmethod
     def load(database, data):
@@ -2099,6 +2254,10 @@ class PgAggregate(PgObject):
                 database.get_schema_by_name(DEFAULT_SCHEMA), data["stype"]
             )
 
+        if "postqueries" in data:
+            for postquery in data["postqueries"]:
+                aggregate.queries.append(PgQuery.load(database, postquery))
+
         schema.aggregates.append(aggregate)
 
         return aggregate
@@ -2112,6 +2271,16 @@ class PgAggregate(PgObject):
             ("arguments", [argument.to_json() for argument in self.arguments]),
         ]
 
+        if self.queries:
+            attributes.append(
+                (
+                    "postqueries",
+                    [
+                        query.toJson(query) for query in self.queries
+                    ]
+                )
+            )
+        
         return OrderedDict(attributes)
 
     @staticmethod
@@ -2621,14 +2790,16 @@ class PgView(PgObject):
         self.object_type = "view"
         self.owner = None
         self.privileges = []
+        self.queries = []
 
     def get_dependencies(self):
-        return (
-            self.database.find_dependencies(self.view_query)
-            + [self.database.get_role_by_name(priv[0]) for priv in self.privileges]
-            + ([self.owner] if self.owner else [])
-        )
-
+        dependencies = self.database.find_dependencies(self.view_query)
+        dependencies += [self.database.get_role_by_name(priv[0]) for priv in self.privileges]
+        dependencies += ([self.owner] if self.owner else [])
+        for query in self.queries:
+            dependencies += query.get_dependencies()
+        return dependencies
+    
     @staticmethod
     def load(database, data):
         schema = database.register_schema(data["schema"])
@@ -2641,6 +2812,10 @@ class PgView(PgObject):
         if "privileges" in data:
             for priv in data["privileges"]:
                 pg_view.privileges.append((priv["role"], priv["privilege"]))
+
+        if "postqueries" in data:
+            for postquery in data["postqueries"]:
+                pg_view.queries.append(PgQuery.load(database, postquery))
 
         schema.views.append(pg_view)
 
@@ -2730,6 +2905,16 @@ class PgView(PgObject):
                         )
                         for grantee in grantees
                     ],
+                )
+            )
+
+        if self.queries:
+            attributes.append(
+                (
+                    "postqueries",
+                    [
+                        query.toJson(query) for query in self.queries
+                    ]
                 )
             )
 
@@ -2910,72 +3095,6 @@ class PgDepend:
             return PgDepend(dependent_obj, referenced_obj)
 
         return [row_to_pg_depend(row) for row in rows]
-
-
-class PgQuery(PgObject):
-    def __init__(self, query, select=True, from_table=None):
-        self.query = query
-        self.select = select
-        self.from_table = from_table
-        self._schema = None
-        self._database = None
-        self.object_type = "query"
-
-    def get_dependencies(self):
-        result = self.database.find_dependencies(self.query)
-        if self.from_table:
-            result.append(self.from_table)
-        return result
-
-    @property
-    def schema(self):
-        if not self._schema:
-            dependencies = list(self.get_dependencies())
-            for depend in dependencies:
-                if depend.schema.name not in SKIPPED_SCHEMAS:
-                    self._schema = depend.schema
-            else:
-                for schema in self.database.schemas.values():
-                    if schema.name not in SKIPPED_SCHEMAS:
-                        self._schema = schema
-        return self._schema
-
-    @property
-    def database(self):
-        return self._database
-
-    def set_database(self, database):
-        self._database = database
-
-    @property
-    def name(self):
-        return self.query
-
-    @staticmethod
-    def load_all_from_db(conn, database):
-        return []  # cannot be loaded from database, have to be added manually
-
-    @staticmethod
-    def load(database, data):
-        query = PgQuery(data["query"], data.get("select", True), data.get("from"))
-        query.set_database(database)
-        return query
-
-    def to_json(self):
-        attributes = [("query", self.query), ("select", self.select)]
-        if self.from_table:
-            attributes.append(
-                (
-                    "from",
-                    OrderedDict(
-                        [
-                            ("schema", self.from_table.schema.name),
-                            ("table", self.from_table.table.name),
-                        ]
-                    ),
-                )
-            )
-        return OrderedDict(attributes)
 
 
 object_loaders = {

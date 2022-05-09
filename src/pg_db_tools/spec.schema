@@ -120,6 +120,32 @@
                                 "additionalProperties": false
                             }
                         },
+                        "default-privileges": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "role": {
+                                        "type": "string",
+                                        "description": "the role to which the default privilege applies"
+                                    },
+                                    "objclass": {
+                                        "type": "string",
+                                        "description": "the type of object to which the default privilege applies"
+                                    },
+                                    "privilege": {
+                                        "type": "string",
+                                        "description": "comma-separated list of default privileges granted"
+                                    }
+                                },
+                                "required": [
+                                    "role",
+                                    "objclass",
+                                    "privilege"
+                                ],
+                                "additionalProperties": false
+                            }
+                        },
                         "owner": {
                             "type": "string",
                             "description": "role that owns the schema"
@@ -253,6 +279,17 @@
                         },
                         "source": {
                             "type": "string"
+                        },
+                        "postqueries": {
+                            "type": "array",
+                            "items": {
+			        "type": "object",
+                                "oneOf": [
+                                     {
+                                         "$ref": "#/definitions/type_enum"
+                                     }
+                                ]
+                            }
                         }
                     },
                     "required": [
@@ -314,6 +351,17 @@
                         },
                         "source": {
                             "type": "string"
+                        },
+                        "postqueries": {
+                            "type": "array",
+                            "items": {
+			        "type": "object",
+                                "oneOf": [
+                                     {
+                                         "$ref": "#/definitions/type_enum"
+                                     }
+                                ]
+                            }
                         }
                     },
                     "required": [
@@ -593,6 +641,17 @@
                                 "additionalProperties": false
                             },
                             "additionalItems": false
+                        },
+                        "postqueries": {
+                            "type": "array",
+                            "items": {
+			        "type": "object",
+                                "oneOf": [
+                                     {
+                                         "$ref": "#/definitions/type_enum"
+                                     }
+                                ]
+                            }
                         }
                     },
                     "required": [
@@ -982,6 +1041,17 @@
                                 "additionalProperties": false
                             },
                             "additionalItems": false
+                        },
+                        "postqueries": {
+                            "type": "array",
+                            "items": {
+			        "type": "object",
+                                "oneOf": [
+                                     {
+                                         "$ref": "#/definitions/type_enum"
+                                     }
+                                ]
+                            }
                         }
                     },
                     "required": [
@@ -1091,6 +1161,17 @@
                                 "additionalProperties": false
                             },
                             "additionalItems": false
+                        },
+                        "postqueries": {
+                            "type": "array",
+                            "items": {
+			        "type": "object",
+                                "oneOf": [
+                                     {
+                                         "$ref": "#/definitions/type_enum"
+                                     }
+                                ]
+                            }
                         }
                     },
                     "required": [
@@ -1121,7 +1202,7 @@
                         },
                         "value": { }
                     }
-		}
+                }
             }
         },
         "row": {
