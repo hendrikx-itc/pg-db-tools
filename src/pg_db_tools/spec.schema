@@ -149,6 +149,17 @@
                         "owner": {
                             "type": "string",
                             "description": "role that owns the schema"
+                        },
+                        "postqueries": {
+                            "type": "array",
+                            "items": {
+			        "type": "object",
+                                "oneOf": [
+                                     {
+                                         "$ref": "#/definitions/type_enum"
+                                     }
+                                ]
+                            }
                         }
                     },
                     "required": [

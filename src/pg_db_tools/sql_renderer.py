@@ -554,6 +554,9 @@ def render_schema_sql(pg_schema: PgSchema) -> Generator[str, None, None]:
                 quote_ident(pg_schema.name), priv[2], priv[1], quote_ident(priv[0].name)
             )
         )
+    for query in pg_schema.queries:
+        for line in render_query_sql(query):
+            yield line
 
 sql_renderers = {
     PgSetting: render_setting_sql,

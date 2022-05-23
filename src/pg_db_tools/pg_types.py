@@ -450,11 +450,17 @@ class PgSchema(PgObject):
         self.owner = owner
         self.privileges = []
         self.default_privileges = []
+        self.queries = []
 
     def get_dependencies(self):
-        return [priv[0] for priv in (self.privileges + self.default_privileges)] + (
+        dependencies = [priv[0] for priv in (self.privileges + self.default_privileges)] + (
             [self.owner] if self.owner else []
         )
+
+        for query in self.queries:
+            dependencies += query.get_dependencies()
+
+        return dependencies
 
     @property
     def database(self) -> PgDatabase:
@@ -510,6 +516,10 @@ class PgSchema(PgObject):
             schema.default_privileges.append(
                 (database.get_role_by_name(right["role"]), right["objclass"], right["privilege"])
             )
+
+        if "postqueries" in data:
+            for postquery in data["postqueries"]:
+                schema.queries.append(PgQuery.load(database, postquery))
 
         return schema
 
