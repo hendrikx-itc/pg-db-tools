@@ -739,7 +739,7 @@ class PgColumn(PgObject):
     def to_json(self) -> OrderedDict:
         attributes = [
             ("name", self.name),
-            ("data_type", self.data_type.to_json(short=True, show_default=False)),
+            ("data_type", self.data_type.to_json(short=True)),
             ("nullable", self.nullable),
         ]
 
@@ -868,6 +868,7 @@ class PgTable(PgObject):
 
         for key, group in itertools.groupby(sorted_column_rows, key=itemgetter(0)):
             table = tables.get(key)
+
             if table is not None:
                 table.columns = [
                     PgColumn.load(
@@ -920,6 +921,8 @@ class PgTable(PgObject):
                 # -1 on the next line because postgres uses 1-based counting and
                 # Python 0-based counting
                 tables[row[0]].partition_columns = [tables[row[0]].columns[row[2] - 1]]
+
+
 
         return tables
 
@@ -1206,7 +1209,7 @@ class PgCheck(PgObject):
     @staticmethod
     def load_all_from_db(conn, database):
         query = (
-            "SELECT conrelid, conname, consrc "
+            "SELECT conrelid, conname, pg_get_expr(conbin, conrelid) "
             "FROM pg_constraint "
             "WHERE contype = 'c' AND conrelid != 0"
         )
@@ -1472,7 +1475,7 @@ class PgFunction(PgObject):
         attributes = [
             ("name", self.name),
             ("schema", self.schema.name),
-            ("return_type", self.return_type.to_json(short=True, show_default=False)),
+            ("return_type", self.return_type.to_json(short=True)),
         ]
 
         if self.returns_set:
@@ -1516,8 +1519,7 @@ class PgFunction(PgObject):
             "FROM pg_proc "
             "JOIN pg_language ON pg_language.oid = pg_proc.prolang "
             "LEFT JOIN pg_description ON pg_description.objoid = pg_proc.oid "
-            "WHERE proisagg IS false AND prokind = "
-            "f"
+            "WHERE prokind = 'f' "
             " "
         )
 
@@ -1692,8 +1694,7 @@ class PgProcedure(PgObject):
             "FROM pg_proc "
             "JOIN pg_language ON pg_language.oid = pg_proc.prolang "
             "LEFT JOIN pg_description ON pg_description.objoid = pg_proc.oid "
-            "WHERE proisagg IS false AND prokind = "
-            "p"
+            "WHERE prokind = 'p'"
             " "
         )
 
@@ -2515,7 +2516,7 @@ class PgTypeRef(PgObject):
 
     def to_json(self, short=False, show_default=True):
         try:
-            return self.dereference().to_json(short=short, show_default=show_default)
+            return self.dereference().to_json(short=short)
         except (AttributeError, KeyError):
             if not self.registry:
                 return self.ref
@@ -2776,7 +2777,7 @@ class PgArgument:
             attributes.append(("name", self.name))
 
         attributes.append(
-            ("data_type", self.data_type.to_json(short=True, show_default=False))
+            ("data_type", self.data_type.to_json(short=True))
         )
 
         if self.mode is not None and self.mode != "i":
